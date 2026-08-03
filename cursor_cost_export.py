@@ -4,8 +4,14 @@ Pulls per-request billing events from the Cursor Admin API endpoint
 POST https://api.cursor.com/teams/filtered-usage-events and emits either the raw
 events or a daily rollup keyed by user, model and billing kind.
 
-Costs are reported by the API in cents as floating point values; they are converted
-to dollars here and only rounded at the final aggregation.
+Cost is split into two measures that must not be added together when reconciling to an
+invoice. `chargeable_cost_usd` is on-demand spend billed in arrears, and is the only
+part that appears as a usage line on the invoice. `included_cost_usd` is consumption
+drawn from the allowance already paid for through the seat subscription, so loading it
+as cost alongside a modeled seat charge double-counts it.
+
+Costs are reported by the API in cents as floating point values; they are converted to
+dollars here and only rounded at the final aggregation.
 """
 
 from __future__ import annotations
@@ -14,121 +20,23 @@ import argparse
 import csv
 import os
 import sys
-import time
 from collections import defaultdict
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Any, Iterator
+from typing import Any
 
-import requests
+from cursor_api import (
+    API_BASE,
+    MAX_PAGE_SIZE,
+    SERVICE,
+    VENDOR,
+    Client,
+    CursorApiError,
+    cents_to_dollars,
+    day_windows,
+)
 
-API_BASE = "https://api.cursor.com"
-USAGE_EVENTS_PATH = "/teams/filtered-usage-events"
-MEMBERS_PATH = "/teams/members"
-
-# The usage events endpoint allows 60 requests/minute per team and caps pages at 1000 rows.
-MAX_PAGE_SIZE = 1000
-RATE_LIMIT_BACKOFF_SECONDS = (1, 2, 4, 8, 16)
-
-VENDOR = "Cursor"
-SERVICE = "Cursor AI"
-
-
-class CursorApiError(RuntimeError):
-    pass
-
-
-@dataclass
-class Client:
-    api_key: str
-    base_url: str = API_BASE
-    timeout: int = 60
-    session: requests.Session = field(default_factory=requests.Session)
-
-    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        url = f"{self.base_url}{path}"
-        # The Admin API authenticates with HTTP Basic using the key as the username
-        # and an empty password.
-        auth = (self.api_key, "")
-
-        last_error: Exception | None = None
-        for attempt, backoff in enumerate((0,) + RATE_LIMIT_BACKOFF_SECONDS):
-            if backoff:
-                time.sleep(backoff)
-            try:
-                response = self.session.request(
-                    method, url, auth=auth, timeout=self.timeout, **kwargs
-                )
-            except requests.RequestException as exc:
-                last_error = exc
-                continue
-
-            if response.status_code == 429 or response.status_code >= 500:
-                last_error = CursorApiError(
-                    f"{response.status_code} from {path}: {response.text[:400]}"
-                )
-                continue
-            if response.status_code >= 400:
-                raise CursorApiError(
-                    f"{response.status_code} from {path}: {response.text[:400]}"
-                )
-            return response.json()
-
-        raise CursorApiError(f"Giving up on {path} after retries") from last_error
-
-    def members(self) -> list[dict[str, Any]]:
-        return self._request("GET", MEMBERS_PATH).get("teamMembers", [])
-
-    def usage_events(
-        self, start_ms: int, end_ms: int, page_size: int = MAX_PAGE_SIZE
-    ) -> Iterator[dict[str, Any]]:
-        page = 1
-        while True:
-            payload = {
-                "startDate": start_ms,
-                "endDate": end_ms,
-                "page": page,
-                "pageSize": page_size,
-            }
-            body = self._request(
-                "POST",
-                USAGE_EVENTS_PATH,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            events = body.get("usageEvents", []) or []
-            yield from events
-
-            pagination = body.get("pagination", {})
-            if not pagination.get("hasNextPage"):
-                return
-            page = pagination.get("currentPage", page) + 1
-
-
-def day_windows(start: date, end: date) -> Iterator[tuple[date, int, int]]:
-    """Yield inclusive [00:00:00.000, 23:59:59.999] UTC epoch-millisecond bounds per day.
-
-    Both API bounds are inclusive, so windows must end on the final millisecond of the
-    day to avoid double-counting an event that lands exactly on midnight.
-    """
-    current = start
-    while current <= end:
-        start_dt = datetime(
-            current.year, current.month, current.day, tzinfo=timezone.utc
-        )
-        end_dt = start_dt + timedelta(days=1) - timedelta(milliseconds=1)
-        yield current, int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000)
-        current += timedelta(days=1)
-
-
-def event_cost_dollars(event: dict[str, Any]) -> Decimal:
-    """Charged amount for an event, in dollars.
-
-    `chargedCents` is the reconciliation field: it already includes the Cursor Token
-    Rate and any discount, so it must not be recomputed from `tokenUsage.totalCents`.
-    """
-    return Decimal(str(event.get("chargedCents") or 0)) / Decimal(100)
+CHARGE_TYPE = "usage"
 
 
 def event_row(event: dict[str, Any], members: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -143,11 +51,17 @@ def event_row(event: dict[str, Any], members: dict[str, dict[str, Any]]) -> dict
     cache_write = int(tokens.get("cacheWriteTokens") or 0)
     cache_read = int(tokens.get("cacheReadTokens") or 0)
 
+    # `chargedCents` is the reconciliation field: it already includes the Cursor Token
+    # Rate and any discount, so it must not be recomputed from tokenUsage.totalCents.
+    cost = cents_to_dollars(event.get("chargedCents"))
+    chargeable = bool(event.get("isChargeable"))
+
     return {
         "usage_date": occurred_at.date().isoformat(),
         "usage_timestamp": occurred_at.isoformat(),
         "vendor": VENDOR,
         "service": SERVICE,
+        "charge_type": CHARGE_TYPE,
         "user_email": email,
         "user_name": member.get("name", ""),
         "user_id": member.get("id", ""),
@@ -160,7 +74,7 @@ def event_row(event: dict[str, Any], members: dict[str, dict[str, Any]]) -> dict
         "model": event.get("model", ""),
         "billing_kind": event.get("kind", ""),
         "max_mode": bool(event.get("maxMode")),
-        "is_chargeable": bool(event.get("isChargeable")),
+        "is_chargeable": chargeable,
         "is_headless": bool(event.get("isHeadless")),
         "is_token_based": bool(event.get("isTokenBasedCall")),
         "request_units": event.get("requestsCosts", 0),
@@ -169,11 +83,12 @@ def event_row(event: dict[str, Any], members: dict[str, dict[str, Any]]) -> dict
         "cache_write_tokens": cache_write,
         "cache_read_tokens": cache_read,
         "total_tokens": input_tokens + output_tokens + cache_write + cache_read,
-        "model_cost_usd": Decimal(str(tokens.get("totalCents") or 0)) / Decimal(100),
-        "cursor_token_fee_usd": Decimal(str(event.get("cursorTokenFee") or 0))
-        / Decimal(100),
+        "model_cost_usd": cents_to_dollars(tokens.get("totalCents")),
+        "cursor_token_fee_usd": cents_to_dollars(event.get("cursorTokenFee")),
         "discount_percent_off": tokens.get("discountPercentOff", ""),
-        "cost_usd": event_cost_dollars(event),
+        "chargeable_cost_usd": cost if chargeable else Decimal(0),
+        "included_cost_usd": Decimal(0) if chargeable else cost,
+        "consumption_usd": cost,
     }
 
 
@@ -182,6 +97,7 @@ EVENT_COLUMNS = [
     "usage_timestamp",
     "vendor",
     "service",
+    "charge_type",
     "user_email",
     "user_name",
     "user_id",
@@ -206,13 +122,16 @@ EVENT_COLUMNS = [
     "model_cost_usd",
     "cursor_token_fee_usd",
     "discount_percent_off",
-    "cost_usd",
+    "chargeable_cost_usd",
+    "included_cost_usd",
+    "consumption_usd",
 ]
 
 DAILY_GROUP_KEYS = [
     "usage_date",
     "vendor",
     "service",
+    "charge_type",
     "user_email",
     "user_name",
     "user_id",
@@ -222,19 +141,23 @@ DAILY_GROUP_KEYS = [
     "billing_kind",
 ]
 
-DAILY_MEASURES = [
-    "event_count",
+DAILY_COUNTERS = [
     "request_units",
     "input_tokens",
     "output_tokens",
     "cache_write_tokens",
     "cache_read_tokens",
     "total_tokens",
-    "cursor_token_fee_usd",
-    "cost_usd",
 ]
 
-DAILY_COLUMNS = DAILY_GROUP_KEYS + DAILY_MEASURES
+DAILY_MONEY = [
+    "cursor_token_fee_usd",
+    "chargeable_cost_usd",
+    "included_cost_usd",
+    "consumption_usd",
+]
+
+DAILY_COLUMNS = DAILY_GROUP_KEYS + ["event_count"] + DAILY_COUNTERS + DAILY_MONEY
 
 
 def roll_up_daily(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -244,25 +167,19 @@ def roll_up_daily(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         bucket = buckets.get(key)
         if bucket is None:
             bucket = {column: row[column] for column in DAILY_GROUP_KEYS}
-            bucket.update({measure: 0 for measure in DAILY_MEASURES})
-            bucket["cost_usd"] = Decimal(0)
-            bucket["cursor_token_fee_usd"] = Decimal(0)
+            bucket["event_count"] = 0
+            bucket.update({counter: 0 for counter in DAILY_COUNTERS})
+            bucket.update({measure: Decimal(0) for measure in DAILY_MONEY})
             buckets[key] = bucket
         bucket["event_count"] += 1
-        for measure in (
-            "request_units",
-            "input_tokens",
-            "output_tokens",
-            "cache_write_tokens",
-            "cache_read_tokens",
-            "total_tokens",
-        ):
+        for counter in DAILY_COUNTERS:
+            bucket[counter] += row[counter]
+        for measure in DAILY_MONEY:
             bucket[measure] += row[measure]
-        bucket["cost_usd"] += row["cost_usd"]
-        bucket["cursor_token_fee_usd"] += row["cursor_token_fee_usd"]
 
     return sorted(
-        buckets.values(), key=lambda row: (row["usage_date"], row["user_email"], row["model"])
+        buckets.values(),
+        key=lambda row: (row["usage_date"], row["user_email"], row["model"]),
     )
 
 
@@ -342,10 +259,11 @@ def main(argv: list[str] | None = None) -> int:
             ]
             rows.extend(day_rows)
             totals[day.isoformat()] = sum(
-                (row["cost_usd"] for row in day_rows), Decimal(0)
+                (row["chargeable_cost_usd"] for row in day_rows), Decimal(0)
             )
             print(
-                f"{day.isoformat()}: {len(day_rows)} events, ${totals[day.isoformat()]:.2f}",
+                f"{day.isoformat()}: {len(day_rows)} events, "
+                f"${totals[day.isoformat()]:.2f} on-demand",
                 file=sys.stderr,
             )
     except CursorApiError as exc:
@@ -357,8 +275,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         write_csv(args.out, EVENT_COLUMNS, rows)
 
-    grand_total = sum(totals.values(), Decimal(0))
-    print(f"total: {len(rows)} events, ${grand_total:.2f}", file=sys.stderr)
+    chargeable = sum(totals.values(), Decimal(0))
+    included = sum((row["included_cost_usd"] for row in rows), Decimal(0))
+    print(
+        f"total: {len(rows)} events, ${chargeable:.2f} on-demand, "
+        f"${included:.2f} drawn from included allowance",
+        file=sys.stderr,
+    )
     return 0
 
 
