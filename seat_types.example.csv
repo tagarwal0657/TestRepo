@@ -1,0 +1,6 @@
+email,seat_type,effective_from,effective_to
+alex@company.com,standard,2026-01-01,
+sam@company.com,premium,2026-01-01,
+jordan@company.com,standard,2026-01-01,2026-06-30
+jordan@company.com,premium,2026-07-01,
+finance-admin@company.com,free,2026-01-01,
