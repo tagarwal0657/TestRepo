@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Generated data and local credentials
+roster.jsonl
+*.csv
+!seat_types.example.csv
