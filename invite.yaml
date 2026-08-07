@@ -1,0 +1,101 @@
+# =============================================================================
+#  Invitation content.  Everything the video says and shows lives in this file.
+#  Edit it, then run  ./make_invite.sh  to re-render.
+# =============================================================================
+
+child:
+  name: "Lavya Agarwal"
+  # Rendered as the big numeral, e.g. 1 + st
+  age_number: "1"
+  age_suffix: "st"
+
+card:
+  ribbon: "Gentle Reminder"
+  eyebrow: "YOU ARE INVITED TO"
+  tagline: "A Magical Celebration"
+  join: "Join us for"
+  # Placed under the name; the age numeral is prefixed automatically.
+  occasion: "Birthday Celebration"
+  # possessive suffix appended to the name ("LAVYA AGARWAL'S")
+  name_suffix: "'S"
+
+# The three columns along the bottom of the card.
+details:
+  - label: "DATE"
+    lines: ["15th August", "2026"]
+  - label: "TIME"
+    lines: ["12:00 PM", "Onwards"]
+  - label: "VENUE"
+    lines: ["Dayal International", "Sakchi"]
+
+footer: "With love  •  Agarwal Family"
+
+photo:
+  # Drop the real photograph in assets/photo/ and point `file` at it.
+  # Anything Pillow can open works (jpg / png / heic-converted / webp).
+  file: "assets/photo/baby.jpg"
+  # Used only when `file` is missing, so the pipeline still renders.
+  fallback: "assets/photo/placeholder_child.png"
+  # Cut the subject out of its original background before compositing.
+  remove_background: true
+  # Height of the visible upper body, as a fraction of the shell's height.
+  body_scale: 0.66
+  # Where the waist rests, measured down from the top of the shell as a
+  # fraction of its height. Larger values seat the child lower.
+  seat: 0.38
+  # Horizontal / vertical nudge of the figure, in pixels.
+  offset: [0, 0]
+  # Overall multiplier on top of body_scale.
+  scale: 1.0
+  # Draw the mermaid tail over the child's legs, like the reference reel.
+  mermaid_tail: true
+  # Where the body is cut for the tail, as a fraction of the cutout height.
+  # Lower values cut higher up; aim for the hem of the dress.
+  crop_at: 0.56
+  # Tail height as a fraction of the upper body height.
+  tail_length: 0.90
+  tail_tilt: 0
+  tail_scale: 1.0
+  tail_offset: [0, 0]
+
+voice:
+  # Microsoft Edge neural voices. "Ana" is the cute child voice; the semitone
+  # shift below pushes it into toddler territory.
+  name: "en-US-AnaNeural"
+  rate: "-5%"
+  # Leave at +0Hz. Edge's own pitch shift smears the consonants badly; the
+  # `semitones` shift below is done with rubberband instead and sounds far
+  # cleaner. Only reach for this if you want the mushier effect on purpose.
+  pitch: "+0Hz"
+  # Post-synthesis pitch shift in semitones. 1.0-2.0 reads as a toddler while
+  # staying easy to understand; past ~2.5 it starts to sound like a chipmunk.
+  semitones: 1.5
+  gain_db: 1.5
+  # Silence inserted after each line, in seconds.
+  gap: 0.28
+  # These lines are spelled for *pronunciation*, not for display, so a US voice
+  # says the Indian names properly. If a name sounds wrong, respell it here --
+  # nothing in this list is shown on screen.
+  lines:
+    - "Hi everyone! Guess what?"
+    - "I am Luvya Agarwal, and I am turning one!"
+    - "Mumma and Papa are throwing me a magical mermaid party, under the sea!"
+    - "It is on the fifteenth of August, twelve P M onwards."
+    - "At Dayal International, Sakchi."
+    - "Please come and shower me with your blessings."
+    - "See you there! Bye bye!"
+
+music:
+  # Procedurally synthesised, so it is royalty free.
+  gain_db: -13.0
+  # Extra attenuation applied underneath the voice.
+  duck_db: -8.0
+
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  # Seconds of runway before the first spoken line and after the last one.
+  lead_in: 1.4
+  tail_out: 2.6
+  crf: 19
