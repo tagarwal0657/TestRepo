@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
+from scipy import ndimage
 
 from . import palette as P
 from .config import ART, Config
@@ -439,12 +440,15 @@ def _prepare_subject(cfg: Config, cache_dir=None) -> Image.Image:
             return Image.open(cache).convert("RGBA")
 
     img = Image.open(src).convert("RGBA")
+    img = _apply_source_crop(img, cfg.photo.get("source_crop"))
     # Work at a sane resolution; the cutout is only ever ~700px tall.
     if img.height > 1600:
         img = img.resize((round(img.width * 1600 / img.height), 1600), Image.LANCZOS)
 
     if cfg.photo.get("remove_background", True):
         img = remove_background(img)
+        if cfg.photo.get("largest_only", True):
+            img = _largest_blob(img)
     subject = trim(img, pad=4)
     subject = _grade_to_scene(subject, cfg)
     subject = _polish_cutout(subject)
@@ -452,6 +456,40 @@ def _prepare_subject(cfg: Config, cache_dir=None) -> Image.Image:
     if cache is not None:
         subject.save(cache)
     return subject
+
+
+def _apply_source_crop(img: Image.Image, box) -> Image.Image:
+    """Crop the source photo to fractional ``[left, top, right, bottom]``.
+
+    Useful when someone is holding the child: cropping the helping hands out
+    before segmentation is far more reliable than trying to remove them after.
+    """
+    if not box:
+        return img
+    left, top, right, bottom = (float(v) for v in box)
+    x0, y0 = int(img.width * left), int(img.height * top)
+    x1, y1 = int(img.width * right), int(img.height * bottom)
+    if x1 - x0 < 16 or y1 - y0 < 16:
+        raise ValueError(f"photo.source_crop {box} leaves almost nothing of the image")
+    return img.crop((x0, y0, x1, y1))
+
+
+def _largest_blob(img: Image.Image) -> Image.Image:
+    """Keep only the biggest connected subject.
+
+    Segmentation often returns the child plus a stray arm or a bystander; the
+    child is reliably the largest piece.
+    """
+    alpha = np.asarray(img.getchannel("A"), np.uint8)
+    labels, count = ndimage.label(alpha > 96)
+    if count <= 1:
+        return img
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    keep = int(np.argmax(sizes))
+    out = np.asarray(img, np.uint8).copy()
+    out[..., 3] = np.where(labels == keep, out[..., 3], 0)
+    return Image.fromarray(out, "RGBA")
 
 
 GLOW_PAD = 24  # room for the rim light, so it never hits the sprite's edge
@@ -537,6 +575,15 @@ def _add_mermaid_tail(subject: Image.Image, cfg: Config, upper_target: int,
         centre = subject.width / 2.0
 
     upper = subject.crop((0, 0, subject.width, cut))
+    # Re-trim the columns now that the lower body is gone. If someone was
+    # holding the child, their arm usually only enters the frame below the crop
+    # line, and dropping it here stops it from inflating the sprite's width.
+    ink = np.flatnonzero(np.asarray(upper.getchannel("A"), np.uint8).max(axis=0) > 4)
+    if ink.size:
+        x0, x1 = int(ink[0]), int(ink[-1]) + 1
+        upper = upper.crop((x0, 0, x1, upper.height))
+        centre -= x0
+
     # Scale so the visible upper body matches the requested height.
     k = upper_target / max(upper.height, 1)
     upper = upper.resize((max(1, round(upper.width * k)), upper_target), Image.LANCZOS)

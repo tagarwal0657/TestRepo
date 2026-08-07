@@ -48,16 +48,38 @@ Two things are worth knowing:
 ## Fitting the photograph
 
 The child is cut out automatically, cropped at the waist, given a mermaid tail
-and seated on the clam shell. Any full-length or waist-up photo works. If the
-fit is off, these keys under `photo:` adjust it:
+and seated on the clam shell. Any full-length or waist-up photo works.
+
+**Start here.** Render the cut-out preview before anything else:
+
+```bash
+./make_invite.sh --cutout      # writes build/cutout_preview.png
+```
+
+It shows the segmented photo with a dashed line marking `crop_at`. Everything
+below that line is thrown away and replaced by the tail, so the line wants to
+sit at the waist.
+
+This matters most when **someone is holding the child**. Segmentation keeps the
+adult's hands and arm, because they are physically connected to the child. Put
+`crop_at` just *above* the hands and they disappear with the legs — the
+remaining columns are re-trimmed afterwards, so a stray arm no longer stretches
+the sprite either. The shipped default of `0.46` is tuned for exactly that kind
+of photo. If the arm still intrudes, `source_crop` cuts the source frame down
+before segmentation even runs.
+
+The rest of the keys under `photo:`:
 
 | Key | What it does |
 | --- | --- |
 | `crop_at` | Where the body is cut for the tail, as a fraction of the cutout height. Lower cuts higher up. |
-| `body_scale` | Height of the visible upper body relative to the shell. |
+| `body_scale` | Height of the visible upper body relative to the shell. Raising it too far pushes the child's head over the TIME column — `tools/check_layout.py` will say so. |
 | `seat` | How far down the shell the waist rests. |
 | `offset` | Pixel nudge of the whole figure. |
-| `tail_length`, `tail_tilt`, `tail_offset` | Tail size, rotation and position. |
+| `feather` | How softly the clothing fades into the tail. |
+| `tail_length`, `tail_width`, `tail_tilt`, `tail_offset` | Tail size, shape and position. |
+| `tint`, `shade`, `exposure` | Blend into the underwater lighting. Zero them out to use the photo exactly as shot. |
+| `source_crop` | Crop the source frame before segmentation. |
 | `mermaid_tail` | Set to `false` to use the photo as-is, with no tail. |
 | `remove_background` | Set to `false` if the photo is already a cutout PNG. |
 
@@ -134,5 +156,8 @@ a flat green background at load time. Replacing any of these files with
 same-shaped artwork is enough to re-theme the video.
 
 `assets/photo/placeholder_child.png` is a generic stand-in used only when
-`assets/photo/baby.jpg` is missing, so the pipeline always renders. The CLI
-prints a warning whenever it falls back to it.
+`assets/photo/baby.jpg` is missing, so the pipeline always renders. It is framed
+the same way as a typical invitation photo — full length, outdoors, an adult's
+hands holding the child steady — so the shipped `photo:` defaults are tuned
+against a realistic case rather than an ideal one. The CLI prints a warning
+whenever it falls back to it.

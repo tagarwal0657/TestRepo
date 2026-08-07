@@ -18,6 +18,28 @@ def _log(msg: str) -> None:
     print(f"[invite] {msg}", flush=True)
 
 
+def write_cutout_preview(cfg, cache: Path) -> Path:
+    """Show the segmented photo with the crop line drawn across it."""
+    from PIL import Image, ImageDraw
+
+    from .artwork import _prepare_subject
+
+    subject = _prepare_subject(cfg, cache)
+    canvas = Image.new("RGBA", subject.size, (18, 52, 104, 255))
+    canvas.alpha_composite(subject)
+
+    d = ImageDraw.Draw(canvas)
+    y = int(subject.height * float(cfg.photo.get("crop_at", 0.56)))
+    for x in range(0, subject.width, 36):
+        d.line([(x, y), (min(x + 20, subject.width), y)], fill=(255, 80, 120, 255), width=5)
+    d.text((12, max(0, y - 34)), f"crop_at = {cfg.photo.get('crop_at', 0.56)}",
+           fill=(255, 210, 225, 255))
+
+    out = cache.parent / "cutout_preview.png"
+    canvas.convert("RGB").save(out)
+    return out
+
+
 def _prepare(cfg, cache: Path, want_music: bool):
     """Synthesise the voice (and optionally the music) and build the cue sheet."""
     t0 = time.time()
@@ -49,6 +71,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="comma separated seconds; renders a PNG per timestamp")
     p.add_argument("--poster", action="store_true",
                    help="also write a still of the finished card as poster.png")
+    p.add_argument("--cutout", action="store_true",
+                   help="write build/cutout_preview.png showing the photo cut out with the "
+                        "crop_at line marked, then exit; use it to dial photo.crop_at in")
     args = p.parse_args(argv)
 
     cfg = config_mod.load(args.config)
@@ -59,6 +84,13 @@ def main(argv: list[str] | None = None) -> int:
     if cfg.using_placeholder():
         _log("WARNING: using the bundled placeholder photograph. Put the real "
              f"picture at {cfg.photo['file']} and re-run.")
+
+    if args.cutout:
+        out = write_cutout_preview(cfg, cache)
+        _log(f"wrote {out}")
+        _log("The dashed line is photo.crop_at: everything below it is replaced by "
+             "the tail. Raise crop_at to keep more of the body, lower it to cut higher.")
+        return 0
 
     want_video = args.still is None and args.stills is None
     sheet, duration, track, lines = _prepare(cfg, cache, want_music=want_video)
