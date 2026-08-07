@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageChops
 
 from . import artwork
-from .artwork import CARD_RECT, Layer, PhotoStack, Shine
+from .artwork import CARD_RECT, Layer, PhotoStack
 from .config import BUILD, Config
 from .effects import (
     BubbleField,
@@ -69,7 +69,8 @@ class Renderer:
         self.finale_sparkles = SparkleField(self.w, self.h, count=40, seed=8, sizes=(16, 52))
         self.finale_bubbles = BubbleField(self.w, self.h, count=40, seed=9, r_range=(8, 34),
                                           speed=(120.0, 260.0), alpha=0.9)
-        self.blessing_rain = FallingSparkles(self.w, self.h, count=44, seed=11, sizes=(12, 40))
+        self.blessing_rain = FallingSparkles(self.w, self.h, count=95, seed=11, sizes=(18, 62),
+                                             speed=(150.0, 330.0))
         name_layer_y = CARD_RECT[1] + 356
         self.name_sparkles = SparkleField(self.w, self.h, count=18, seed=6, sizes=(14, 40),
                                           region=(name_layer_y / self.h - 0.055,
@@ -98,10 +99,20 @@ class Renderer:
             ))
 
     # ------------------------------------------------------------------ #
-    def _draw_layer(self, canvas: Image.Image, layer: Layer, t: float, key: str | None = None) -> None:
+    def _card_bob(self, t: float) -> float:
+        """A shared drift for the card and everything printed on it.
+
+        Floating the panel on its own would slide it out from under its text,
+        so the whole group moves together.
+        """
+        return 6.0 * math.sin(math.tau * t / 6.2 + 0.8)
+
+    def _draw_layer(self, canvas: Image.Image, layer: Layer, t: float, key: str | None = None,
+                    bob: float = 0.0) -> None:
         alpha, dx, dy, scale = self.sheet.state(key or layer.key, t)
         if alpha <= 0.004:
             return
+        dy += bob
         img = layer.image
         x, y = layer.origin()
         if abs(scale - 1.0) > 0.004:
@@ -122,7 +133,7 @@ class Renderer:
         since = t - cue.start
         if since > 1.8:
             return 0.0
-        return -34.0 * math.exp(-2.6 * since) * math.sin(math.tau * 1.5 * since)
+        return -58.0 * math.exp(-2.2 * since) * math.sin(math.tau * 1.45 * since)
 
     def _draw_photo_stack(self, canvas: Image.Image, t: float) -> None:
         alpha, dx, dy, _ = self.sheet.state("shell", t)
@@ -148,7 +159,7 @@ class Renderer:
             y = s.y + s.bob * math.sin(math.tau * t / s.bob_period + s.phase)
             canvas.alpha_composite(s.sprite, (int(x), int(y - s.sprite.height / 2)))
 
-    def _draw_shine(self, canvas: Image.Image, t: float) -> None:
+    def _draw_shine(self, canvas: Image.Image, t: float, bob: float = 0.0) -> None:
         cue = self.sheet.cues.get("name_shine")
         if cue is None:
             return
@@ -160,7 +171,8 @@ class Renderer:
         if phase > 1.0:
             return
         overlay = shine_overlay(self.shine.mask, phase, intensity=0.9)
-        canvas.alpha_composite(overlay, self.shine.pos)
+        x, y = self.shine.pos
+        canvas.alpha_composite(overlay, (x, int(round(y + bob))))
 
     # ------------------------------------------------------------------ #
     def frame(self, index: int) -> Image.Image:
@@ -187,10 +199,12 @@ class Renderer:
         self._draw_swimmers(canvas, t)
 
         self._draw_layer(canvas, self.ribbon, t)
-        self._draw_layer(canvas, self.card_panel, t)
+        bob = self._card_bob(t)
+        self._draw_layer(canvas, self.card_panel, t, bob=bob)
         for layer in self.text_layers:
-            self._draw_layer(canvas, layer, t)
-        self._draw_shine(canvas, t)
+            # The footer sits on the sand, not on the card, so it stays put.
+            self._draw_layer(canvas, layer, t, bob=0.0 if layer.key == "footer" else bob)
+        self._draw_shine(canvas, t, bob)
 
         # Sparkle flourish as the name lands.
         name_cue = self.sheet.cues.get("name")

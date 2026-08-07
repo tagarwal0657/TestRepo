@@ -14,9 +14,7 @@ from .imaging import (
     apply_mask,
     chroma_key,
     drop_shadow,
-    fit_within,
     linear_gradient,
-    open_scaled,
     outer_glow,
     radial_gradient,
     remove_background,
@@ -94,7 +92,7 @@ def build_card_panel() -> Image.Image:
     return out
 
 
-def build_ribbon(text: str, width: int = 760, height: int = 128) -> Image.Image:
+def build_ribbon(text: str, width: int = 780, height: int = 140) -> Image.Image:
     """A purple banner with notched ends and folded tails, carrying script text."""
     pad = 70
     tail_w = 62
@@ -139,17 +137,21 @@ def build_ribbon(text: str, width: int = 760, height: int = 128) -> Image.Image:
     out.alpha_composite(apply_mask(gloss, band))
     out.alpha_composite(apply_mask(linear_gradient(size, P.GRAD_GOLD, 60.0), ring_mask(band, 7)))
 
-    font = fit_font(text, "script", width - 90, 96)
+    # A dark halo behind the script, then a bright gold face: cursive on a busy
+    # purple band needs both to stay readable at a glance.
+    font = fit_font(text, "script", width - 70, 112)
     label = render_text(
         text,
         font,
-        gradient=P.GRAD_GOLD,
+        gradient=P.GRAD_GOLD_BRIGHT,
         gradient_angle=90.0,
-        stroke=3,
-        stroke_fill=(90, 46, 8, 255),
-        glow=((255, 224, 150, 210), 16, 0.95),
-        shadow=(6, (0, 4), (30, 8, 50, 180)),
-        glitter=26,
+        stroke=4,
+        stroke_fill=(70, 32, 4, 255),
+        stroke2=4,
+        stroke2_fill=(34, 8, 52, 235),
+        glow=((255, 236, 176, 235), 20, 1.0),
+        shadow=(8, (0, 4), (18, 4, 36, 220)),
+        glitter=30,
         seed=11,
     )
     lx = cx0 + (width - label.width) // 2
@@ -460,10 +462,15 @@ WATER_TINT = (96, 176, 224)
 
 
 def _grade_to_scene(img: Image.Image, cfg: Config) -> Image.Image:
-    """Pull a studio-lit photo towards the underwater lighting."""
-    tint = float(cfg.photo.get("tint", 0.16))
-    shade = float(cfg.photo.get("shade", 0.22))
-    if tint <= 0.001 and shade <= 0.001:
+    """Pull a studio-lit photo towards the underwater lighting.
+
+    Deliberately restrained: parents want the child bright and recognisable, so
+    this only takes the edge off the highlights rather than drowning the face.
+    """
+    tint = float(cfg.photo.get("tint", 0.22))
+    shade = float(cfg.photo.get("shade", 0.26))
+    exposure = float(cfg.photo.get("exposure", 0.93))
+    if tint <= 0.001 and shade <= 0.001 and abs(exposure - 1.0) < 0.001:
         return img
 
     arr = np.asarray(img, np.float32) / 255.0
@@ -471,17 +478,20 @@ def _grade_to_scene(img: Image.Image, cfg: Config) -> Image.Image:
 
     if tint > 0:
         target = np.array(WATER_TINT, np.float32) / 255.0
-        # Tint the highlights hardest: bright whites are what give the cut-out
-        # away, while shadows already sit close to the background.
         luma = rgb @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-        weight = (np.clip(luma, 0, 1) ** 1.4)[..., None] * tint
-        rgb = rgb * (1 - weight) + target * weight
+        # A little everywhere, a lot in the highlights: stark whites are what
+        # give a cut-out away, while shadows already sit near the background.
+        weight = tint * (0.5 + 0.9 * np.clip(luma, 0, 1) ** 1.5)
+        rgb = rgb * (1 - weight[..., None]) + target * weight[..., None]
 
     if shade > 0:
         # Darken towards the feet, where the figure meets the shell.
         h = rgb.shape[0]
-        ramp = 1.0 - shade * np.clip((np.arange(h, dtype=np.float32) / h - 0.45) / 0.55, 0, 1) ** 1.5
+        ramp = 1.0 - shade * np.clip((np.arange(h, dtype=np.float32) / h - 0.40) / 0.60, 0, 1) ** 1.4
         rgb = rgb * ramp[:, None, None]
+
+    if exposure != 1.0:
+        rgb = rgb * exposure
 
     out = np.concatenate([np.clip(rgb, 0, 1), alpha], axis=-1)
     return Image.fromarray((out * 255).astype(np.uint8), "RGBA")

@@ -136,8 +136,9 @@ def build_sheet(lines: list[SpokenLine], lead_in: float, total: float, detail_co
     s.add("ribbon", start=max(0.0, lead_in - 1.05), duration=1.0, easing="back",
           from_offset=(0, -260), float_y=7.0, float_period=5.0)
 
-    s.add("card", start=max(0.0, lead_in - 0.55), duration=0.95, easing="back",
-          from_scale=0.80, float_y=5.0, float_period=6.4, float_phase=0.8)
+    # No float here: the card and its text share one drift, applied by the
+    # renderer, so the panel cannot slide out from under the words.
+    s.add("card", start=max(0.0, lead_in - 0.55), duration=0.95, easing="back", from_scale=0.80)
 
     s.add("eyebrow", start=s.at(0, 0.35), duration=0.65, easing="back",
           from_offset=(0, 46), from_scale=0.86)

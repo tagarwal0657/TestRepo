@@ -55,10 +55,13 @@ photo:
   # Softens the join between clothing and the tail, as a fraction of the
   # upper body height.
   feather: 0.12
-  # Blends the photo into the underwater lighting. `tint` cools the highlights,
-  # `shade` darkens towards the feet. Set both to 0 to keep the photo untouched.
-  tint: 0.16
-  shade: 0.22
+  # Blends the photo into the underwater lighting. `tint` cools the image and
+  # its highlights most of all, `shade` darkens towards the feet, `exposure`
+  # takes the overall brightness down. Set tint and shade to 0 and exposure to
+  # 1.0 to use the photograph exactly as shot.
+  tint: 0.22
+  shade: 0.26
+  exposure: 0.93
   # Tail height as a fraction of the upper body height.
   tail_length: 1.10
   # Widens the tail without making it longer.

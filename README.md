@@ -70,17 +70,40 @@ Iterate quickly with a single frame instead of the whole video:
 
 ## Checking the result
 
-`tools/verify_audio.py` transcribes the finished mix — voice *and* music, exactly
-what ships in the mp4 — and checks the script survived the pitch shift:
+Three checks, none of which need a human to sit and watch the render.
+
+**`tools/verify_audio.py`** transcribes the finished mix — voice *and* music,
+exactly what ships in the mp4 — and checks the script survived the pitch shift.
+It reports a similarity ratio, confirms the date, time, venue and age are
+audible, and matches names phonetically (a recogniser writes "Dial
+International" for *Dayal International* even when the audio is perfectly
+clear).
 
 ```bash
 .venv/bin/python tools/verify_audio.py build/invitation.mp4
 ```
 
-It reports a similarity ratio, confirms the date, time, venue and age are
-audible, and matches names phonetically (a recogniser writes "Dial
-International" for *Dayal International* even when the audio is perfectly
-clear).
+**`tools/check_layout.py`** walks the timeline, rasterises the ink of every text
+layer, and fails if anything is covered by the child or the shell, collides with
+other text, runs off the frame, or spills outside the card. Worth running after
+changing a name, a venue or any `photo:` key, since those change sprite sizes.
+
+```bash
+.venv/bin/python tools/check_layout.py
+```
+
+**`tools/motion_report.py`** reports frame-to-frame change per second, so a
+stretch that has gone visually static shows up as a low bar. It also reports
+motion within the shell region, which is how the closing bounce is confirmed.
+
+```bash
+.venv/bin/python tools/motion_report.py build/invitation.mp4
+```
+
+One caveat when reviewing the output: the fine particle effects are thin, bright
+specks. Re-encoding the mp4 small and low-quality to share it will delete them
+entirely, and the video will look static even though the master is not. Judge it
+from `build/invitation.mp4`, or from an encode at 720p or better.
 
 ## How it fits together
 
