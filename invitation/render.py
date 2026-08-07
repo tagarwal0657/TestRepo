@@ -18,6 +18,7 @@ from .config import BUILD, Config
 from .effects import (
     BubbleField,
     Caustics,
+    FallingSparkles,
     SparkleField,
     add_light,
     build_god_rays,
@@ -68,6 +69,7 @@ class Renderer:
         self.finale_sparkles = SparkleField(self.w, self.h, count=40, seed=8, sizes=(16, 52))
         self.finale_bubbles = BubbleField(self.w, self.h, count=40, seed=9, r_range=(8, 34),
                                           speed=(120.0, 260.0), alpha=0.9)
+        self.blessing_rain = FallingSparkles(self.w, self.h, count=44, seed=11, sizes=(12, 40))
         name_layer_y = CARD_RECT[1] + 356
         self.name_sparkles = SparkleField(self.w, self.h, count=18, seed=6, sizes=(14, 40),
                                           region=(name_layer_y / self.h - 0.055,
@@ -112,11 +114,22 @@ class Renderer:
             img = with_opacity(img, alpha)
         canvas.alpha_composite(img, (int(round(x + dx)), int(round(y + dy))))
 
+    def _finale_bounce(self, t: float) -> float:
+        """A short damped hop of the shell on the sign-off line."""
+        cue = self.sheet.cues.get("finale")
+        if cue is None or t < cue.start:
+            return 0.0
+        since = t - cue.start
+        if since > 1.8:
+            return 0.0
+        return -34.0 * math.exp(-2.6 * since) * math.sin(math.tau * 1.5 * since)
+
     def _draw_photo_stack(self, canvas: Image.Image, t: float) -> None:
         alpha, dx, dy, _ = self.sheet.state("shell", t)
         if alpha <= 0.004:
             return
         ps: PhotoStack = self.photo
+        dy += self._finale_bounce(t)
         ox, oy = int(round(dx)), int(round(dy))
 
         def blit(img: Image.Image, pos: tuple[int, int]) -> None:
@@ -205,13 +218,18 @@ class Renderer:
         self.bubbles_front.draw(canvas, t, 0.9, avoid=avoid)
         self.sparkles.draw(canvas, t, 0.55 + 0.25 * math.sin(math.tau * t / 7.0), avoid=avoid)
 
-        # Closing flourish over the sign-off.
+        # Closing beats: glitter rain, then a bubble burst on the sign-off.
+        blessings = self.sheet.cues.get("blessings")
+        if blessings is not None and t >= blessings.start:
+            strength = smoothstep(clamp01((t - blessings.start) / 0.9))
+            self.blessing_rain.draw(canvas, t, strength * 0.85, avoid=avoid)
+
         finale = self.sheet.cues.get("finale")
         if finale is not None and t >= finale.start:
             since = t - finale.start
             strength = smoothstep(clamp01(since / 0.45))
-            self.finale_bubbles.draw(canvas, t, strength * 0.75, avoid=avoid)
-            self.finale_sparkles.draw(canvas, t, strength * 0.95)
+            self.finale_bubbles.draw(canvas, t, strength * 0.85, avoid=avoid)
+            self.finale_sparkles.draw(canvas, t, strength)
 
         # Gentle fade up from black at the very start and out at the end.
         rgb = ImageChops.multiply(canvas.convert("RGB"), self.vignette)

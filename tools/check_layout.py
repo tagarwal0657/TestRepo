@@ -80,7 +80,26 @@ def main() -> int:
                 print(f"{layer.key:22s} {name:14s} {hit:7d}   <-- {100 * hit / total:.1f}% of its ink")
                 failures.append(f"{name} covers {hit}px of '{layer.key}' ({100 * hit / total:.1f}%)")
 
-    # 2. Anything hanging off the edge of the frame.
+    # 2. Text against other text: a long name or a big numeral can collide.
+    print("\ntext against text:")
+    inks = {}
+    for layer in r.text_layers:
+        m = mask_of(layer.image, layer.origin(), size, threshold=0.7)
+        if m.any():
+            inks[layer.key] = m
+    keys = list(inks)
+    clean = True
+    for i, a in enumerate(keys):
+        for b in keys[i + 1:]:
+            hit = int((inks[a] & inks[b]).sum())
+            if hit > args.max_overlap:
+                clean = False
+                print(f"  OVERLAP  {a} <-> {b}: {hit} px")
+                failures.append(f"'{a}' and '{b}' overlap by {hit}px")
+    if clean:
+        print("  ok       no text collides with other text")
+
+    # 3. Anything hanging off the edge of the frame.
     print("\nframe bounds:")
     everything = [("ribbon", r.ribbon), ("card", r.card_panel), *((l.key, l) for l in r.text_layers)]
     for key, layer in everything:
@@ -102,7 +121,7 @@ def main() -> int:
         else:
             print(f"  ok         {key}")
 
-    # 3. Text must stay inside the card.
+    # 4. Text must stay inside the card.
     from invitation.artwork import CARD_RECT
 
     print("\ninside the card panel:")

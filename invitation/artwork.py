@@ -196,7 +196,7 @@ def build_card_text(cfg: Config) -> tuple[list[Layer], Shine]:
     f = fit_font(cfg.card["join"], "serif", inner_w - 200, 46, weight=600)
     layers.append(Layer("join", render_text(
         cfg.card["join"], f, fill=P.INK, shadow=(3, (0, 2), (120, 90, 60, 80)),
-    ), cx, y0 + 234, "center"))
+    ), cx, y0 + 242, "center"))
 
     # The name, in glittering pink.
     name = (cfg.child["name"] + cfg.card.get("name_suffix", "")).upper()
@@ -275,23 +275,35 @@ def _build_occasion(cfg: Config, inner_w: int) -> Image.Image:
 
 
 def _build_crown(size: int) -> Image.Image:
-    pad = 14
-    img = Image.new("RGBA", (size + 2 * pad, size + 2 * pad), (0, 0, 0, 0))
+    pad = 16
+    w = size
+    h = int(size * 0.66)
+    img = Image.new("RGBA", (w + 2 * pad, h + 2 * pad), (0, 0, 0, 0))
     m = Image.new("L", img.size, 0)
     d = ImageDraw.Draw(m)
-    w = size
-    h = int(size * 0.62)
-    x, y = pad, pad + (size - h) // 2
-    pts = [(x, y + h), (x, y + h * 0.30), (x + w * 0.25, y + h * 0.62), (x + w * 0.5, y + h * 0.02),
-           (x + w * 0.75, y + h * 0.62), (x + w, y + h * 0.30), (x + w, y + h)]
+    x, y = pad, pad
+    pts = [(x, y + h), (x, y + h * 0.26), (x + w * 0.25, y + h * 0.60), (x + w * 0.5, y),
+           (x + w * 0.75, y + h * 0.60), (x + w, y + h * 0.26), (x + w, y + h)]
     d.polygon(pts, fill=255)
-    d.rectangle([x, y + h * 0.80, x + w, y + h], fill=255)
-    img.alpha_composite(outer_glow(m, (255, 220, 140, 200), 12, 0.9))
-    img.alpha_composite(apply_mask(linear_gradient(img.size, P.GRAD_GOLD, 90.0), m))
-    img.alpha_composite(apply_mask(Image.new("RGBA", img.size, (120, 70, 10, 255)), ring_mask(m, 2)))
+    d.rectangle([x, y + h * 0.76, x + w, y + h], fill=255)
+
+    img.alpha_composite(outer_glow(m, (255, 226, 150, 210), 11, 0.95))
+    # Build the gold over the crown's own extent; spreading the ramp across the
+    # padding would leave only the dull middle of the gradient on the shape.
+    gold = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    gold.alpha_composite(linear_gradient((w, h), P.GRAD_GOLD, 90.0), (pad, pad))
+    img.alpha_composite(apply_mask(gold, m))
+    img.alpha_composite(apply_mask(Image.new("RGBA", img.size, (128, 74, 12, 255)), ring_mask(m, 3)))
+
     d2 = ImageDraw.Draw(img)
-    for px in (x + w * 0.5, x + w * 0.06, x + w * 0.94):
-        d2.ellipse([px - 6, y - 2, px + 6, y + 10], fill=(255, 120, 180, 255), outline=(255, 240, 200, 255))
+    # Jewels: one on each spike, three along the band.
+    r = max(3, size // 16)
+    for px, py in ((x + w * 0.5, y + r), (x + w * 0.03, y + h * 0.26), (x + w * 0.97, y + h * 0.26)):
+        d2.ellipse([px - r, py - r, px + r, py + r], fill=(255, 110, 178, 255), outline=(255, 244, 214, 255), width=2)
+    band_y = y + h * 0.88
+    for px in (x + w * 0.22, x + w * 0.5, x + w * 0.78):
+        d2.ellipse([px - r * 0.8, band_y - r * 0.8, px + r * 0.8, band_y + r * 0.8],
+                   fill=(90, 220, 220, 255), outline=(255, 244, 214, 255), width=2)
     return img
 
 
@@ -432,6 +444,7 @@ def _prepare_subject(cfg: Config, cache_dir=None) -> Image.Image:
     if cfg.photo.get("remove_background", True):
         img = remove_background(img)
     subject = trim(img, pad=4)
+    subject = _grade_to_scene(subject, cfg)
     subject = _polish_cutout(subject)
 
     if cache is not None:
@@ -440,6 +453,38 @@ def _prepare_subject(cfg: Config, cache_dir=None) -> Image.Image:
 
 
 GLOW_PAD = 24  # room for the rim light, so it never hits the sprite's edge
+
+# Ambient colour of the scene, used to tint the cut-out so it does not read as a
+# brightly lit sticker pasted onto dark water.
+WATER_TINT = (96, 176, 224)
+
+
+def _grade_to_scene(img: Image.Image, cfg: Config) -> Image.Image:
+    """Pull a studio-lit photo towards the underwater lighting."""
+    tint = float(cfg.photo.get("tint", 0.16))
+    shade = float(cfg.photo.get("shade", 0.22))
+    if tint <= 0.001 and shade <= 0.001:
+        return img
+
+    arr = np.asarray(img, np.float32) / 255.0
+    rgb, alpha = arr[..., :3], arr[..., 3:]
+
+    if tint > 0:
+        target = np.array(WATER_TINT, np.float32) / 255.0
+        # Tint the highlights hardest: bright whites are what give the cut-out
+        # away, while shadows already sit close to the background.
+        luma = rgb @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+        weight = (np.clip(luma, 0, 1) ** 1.4)[..., None] * tint
+        rgb = rgb * (1 - weight) + target * weight
+
+    if shade > 0:
+        # Darken towards the feet, where the figure meets the shell.
+        h = rgb.shape[0]
+        ramp = 1.0 - shade * np.clip((np.arange(h, dtype=np.float32) / h - 0.45) / 0.55, 0, 1) ** 1.5
+        rgb = rgb * ramp[:, None, None]
+
+    out = np.concatenate([np.clip(rgb, 0, 1), alpha], axis=-1)
+    return Image.fromarray((out * 255).astype(np.uint8), "RGBA")
 
 
 def _polish_cutout(img: Image.Image) -> Image.Image:

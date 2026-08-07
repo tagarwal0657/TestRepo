@@ -171,7 +171,10 @@ def build_sheet(lines: list[SpokenLine], lead_in: float, total: float, detail_co
     # The gloss sweep across the name, repeated a few times.
     s.add("name_shine", start=s.at(1, 0.95), duration=0.9, easing="linear", fade=False)
 
-    # A closing flourish on the sign-off, so the last seconds are not dead air.
+    # Two closing beats, so the last seconds carry their own motion.
+    # "shower me with your blessings" gets a rain of glitter...
+    s.add("blessings", start=s.at(5, -0.25), duration=0.9, easing="cubic")
+    # ...and the sign-off gets a bubble burst plus a bounce of the shell.
     s.add("finale", start=s.at(6, -0.15), duration=0.6, easing="cubic")
 
     return s

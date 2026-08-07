@@ -233,6 +233,53 @@ class SparkleField:
 # --------------------------------------------------------------------------- #
 #  Shared helpers
 # --------------------------------------------------------------------------- #
+class FallingSparkles:
+    """Glittering motes drifting down the frame, for the 'blessings' beat."""
+
+    def __init__(self, width: int, height: int, count: int, seed: int,
+                 sizes: tuple[int, int] = (12, 40), speed: tuple[float, float] = (90.0, 210.0)):
+        rng = np.random.default_rng(seed)
+        self.width, self.height = width, height
+        self.margin = sizes[1]
+        cache: dict[int, Image.Image] = {}
+        colours = [(255, 238, 176), (255, 255, 255), (255, 206, 236), (198, 246, 255)]
+        self.items = []
+        for _ in range(count):
+            s = int(rng.integers(*sizes))
+            col = colours[int(rng.integers(0, len(colours)))]
+            key = s * 10 + colours.index(col)
+            if key not in cache:
+                cache[key] = _star_sprite(s, col)
+            self.items.append((
+                float(rng.uniform(0, width)),
+                float(rng.uniform(-self.margin, height)),
+                cache[key],
+                float(rng.uniform(*speed)),
+                float(rng.uniform(14.0, 46.0)),   # sway
+                float(rng.uniform(0.4, 1.3)),     # sway rate
+                float(rng.uniform(0, math.tau)),
+                float(rng.uniform(1.4, 3.2)),     # twinkle rate
+            ))
+
+    def draw(self, canvas: Image.Image, t: float, opacity: float = 1.0,
+             avoid: tuple[int, int, int, int] | None = None) -> None:
+        if opacity <= 0.01:
+            return
+        span = self.height + 2 * self.margin
+        for x0, y0, sprite, speed, sway, rate, phase, twinkle in self.items:
+            y = (y0 + speed * t + self.margin) % span - self.margin
+            x = x0 + sway * math.sin(rate * t + phase)
+            if avoid is not None:
+                ax0, ay0, ax1, ay1 = avoid
+                if ax0 < x < ax1 and ay0 < y < ay1:
+                    continue
+            a = (0.5 + 0.5 * math.sin(t * twinkle * math.tau * 0.5 + phase)) ** 1.6 * opacity
+            if a < 0.05:
+                continue
+            s = with_opacity(sprite, a)
+            canvas.alpha_composite(s, (int(x - s.width / 2), int(y - s.height / 2)))
+
+
 _ALPHA_LUTS: dict[int, list[int]] = {}
 
 
