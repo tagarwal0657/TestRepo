@@ -139,9 +139,11 @@ def build_sheet(lines: list[SpokenLine], lead_in: float, total: float, detail_co
     s.add("card", start=max(0.0, lead_in - 0.55), duration=0.95, easing="back",
           from_scale=0.80, float_y=5.0, float_period=6.4, float_phase=0.8)
 
-    s.add("eyebrow", start=s.at(0, 0.35), duration=0.6, easing="cubic", from_offset=(0, 26))
-    s.add("tagline", start=s.at(0, 0.62), duration=0.75, easing="back", from_scale=0.72)
-    s.add("join", start=s.at(0, 0.95), duration=0.55, easing="cubic", from_offset=(0, 22))
+    s.add("eyebrow", start=s.at(0, 0.35), duration=0.65, easing="back",
+          from_offset=(0, 46), from_scale=0.86)
+    s.add("tagline", start=s.at(0, 0.62), duration=0.8, easing="back", from_scale=0.66)
+    s.add("join", start=s.at(0, 0.95), duration=0.6, easing="back",
+          from_offset=(0, 40), from_scale=0.88)
 
     s.add("name", start=s.at(1, 0.15), duration=0.95, easing="elastic", from_scale=0.55)
     s.add("occasion", start=s.at(1, 1.25), duration=0.85, easing="back", from_scale=0.60)
@@ -155,16 +157,21 @@ def build_sheet(lines: list[SpokenLine], lead_in: float, total: float, detail_co
     detail_cues = [(3, 0.10), (3, 1.05), (4, 0.15)]
     for i in range(detail_count):
         line_i, off = detail_cues[i] if i < len(detail_cues) else (4, 0.15 + 0.5 * i)
-        s.add(f"detail{i}_label", start=s.at(line_i, off), duration=0.55, easing="back", from_scale=0.5)
-        s.add(f"detail{i}_value", start=s.at(line_i, off + 0.18), duration=0.6, easing="cubic", from_offset=(0, 26))
-        s.add(f"detail{i}_sep", start=s.at(line_i, off + 0.3), duration=0.5, easing="cubic")
+        s.add(f"detail{i}_label", start=s.at(line_i, off), duration=0.6, easing="back", from_scale=0.42)
+        s.add(f"detail{i}_value", start=s.at(line_i, off + 0.18), duration=0.65, easing="back",
+              from_offset=(0, 40), from_scale=0.86)
+        s.add(f"detail{i}_sep", start=s.at(line_i, off + 0.3), duration=0.5, easing="cubic", from_scale=0.3)
 
-    s.add("footer", start=s.at(5, 0.3), duration=0.7, easing="cubic", from_offset=(0, 18))
+    s.add("footer", start=s.at(5, 0.3), duration=0.7, easing="back",
+          from_offset=(0, 30), from_scale=0.9)
 
     s.add("seahorse", start=s.at(2, 0.5), duration=1.0, easing="cubic",
           from_offset=(190, 0), float_y=16.0, float_period=3.4)
 
     # The gloss sweep across the name, repeated a few times.
     s.add("name_shine", start=s.at(1, 0.95), duration=0.9, easing="linear", fade=False)
+
+    # A closing flourish on the sign-off, so the last seconds are not dead air.
+    s.add("finale", start=s.at(6, -0.15), duration=0.6, easing="cubic")
 
     return s

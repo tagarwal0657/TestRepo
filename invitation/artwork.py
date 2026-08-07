@@ -387,14 +387,16 @@ def build_photo_stack(cfg: Config, cache_dir=None) -> PhotoStack:
     body_scale = float(cfg.photo.get("body_scale", 0.62)) * float(cfg.photo.get("scale", 1.0))
     upper_target = max(60, int(round(sh * body_scale)))
 
+    # The waist rests on the bowl, part way down the shell.
+    waist_y = shell_y + int(round(sh * float(cfg.photo.get("seat", 0.38))))
+
     if cfg.photo.get("mermaid_tail", True):
-        subject, waist = _add_mermaid_tail(subject, cfg, upper_target)
+        # Keep the fin from poking out below the shell.
+        tail_max = max(60, SHELL_BOTTOM - 18 - waist_y)
+        subject, waist = _add_mermaid_tail(subject, cfg, upper_target, tail_max)
     else:
         subject = scale_to_height(subject, upper_target)
         waist = subject.height
-
-    # The waist rests on the bowl, part way down the shell.
-    waist_y = shell_y + int(round(sh * float(cfg.photo.get("seat", 0.38))))
 
     ox, oy = cfg.photo.get("offset", [0, 0])
     subj_x = (cfg.width - subject.width) // 2 + int(ox)
@@ -437,6 +439,9 @@ def _prepare_subject(cfg: Config, cache_dir=None) -> Image.Image:
     return subject
 
 
+GLOW_PAD = 24  # room for the rim light, so it never hits the sprite's edge
+
+
 def _polish_cutout(img: Image.Image) -> Image.Image:
     """Tidy the matte edge and add a faint rim light so the cutout sits in the scene."""
     arr = np.asarray(img, np.uint8).copy()
@@ -446,13 +451,20 @@ def _polish_cutout(img: Image.Image) -> Image.Image:
     arr[..., 3] = np.asarray(alpha, np.uint8)
     cleaned = Image.fromarray(arr, "RGBA")
 
-    out = Image.new("RGBA", cleaned.size, (0, 0, 0, 0))
-    out.alpha_composite(outer_glow(alpha, (170, 240, 255, 150), 10, 0.9, spread=2))
-    out.alpha_composite(cleaned)
+    # Pad first: a glow generated flush with the border gets clipped into a
+    # visible rectangle as soon as the sprite is drawn semi-transparent.
+    size = (cleaned.width + 2 * GLOW_PAD, cleaned.height + 2 * GLOW_PAD)
+    padded_alpha = Image.new("L", size, 0)
+    padded_alpha.paste(alpha, (GLOW_PAD, GLOW_PAD))
+
+    out = Image.new("RGBA", size, (0, 0, 0, 0))
+    out.alpha_composite(outer_glow(padded_alpha, (170, 240, 255, 130), 10, 0.85, spread=2))
+    out.alpha_composite(cleaned, (GLOW_PAD, GLOW_PAD))
     return out
 
 
-def _add_mermaid_tail(subject: Image.Image, cfg: Config, upper_target: int) -> tuple[Image.Image, int]:
+def _add_mermaid_tail(subject: Image.Image, cfg: Config, upper_target: int,
+                      tail_max: int) -> tuple[Image.Image, int]:
     """Crop the child at the waist and swap the legs for a mermaid tail.
 
     Returns the composite and the y of the waist within it, so the caller can
@@ -474,11 +486,16 @@ def _add_mermaid_tail(subject: Image.Image, cfg: Config, upper_target: int) -> t
     k = upper_target / max(upper.height, 1)
     upper = upper.resize((max(1, round(upper.width * k)), upper_target), Image.LANCZOS)
     centre *= k
+    upper = _feather_bottom(upper, float(cfg.photo.get("feather", 0.12)))
 
     tail = trim(chroma_key(Image.open(ART / "mermaid_tail.png")), pad=2)
     tail_h = max(40, int(upper_target * float(cfg.photo.get("tail_length", 0.80))
                          * float(cfg.photo.get("tail_scale", 1.0))))
-    tail = scale_to_height(tail, tail_h)
+    tail_h = min(tail_h, tail_max)
+    # Widen without lengthening, so the tail reads as chubby rather than as a tube.
+    tail_w = max(20, int(round(tail.width * tail_h / tail.height
+                               * float(cfg.photo.get("tail_width", 1.0)))))
+    tail = tail.resize((tail_w, tail_h), Image.LANCZOS)
     tilt = float(cfg.photo.get("tail_tilt", 0.0))
     if abs(tilt) > 0.5:
         tail = trim(tail.rotate(tilt, resample=Image.BICUBIC, expand=True), pad=2)
@@ -502,6 +519,21 @@ def _add_mermaid_tail(subject: Image.Image, cfg: Config, upper_target: int) -> t
     # `trim` may shave transparent rows off the top; keep the waist honest.
     top_lost = _top_transparent_rows(out)
     return trimmed, upper.height - top_lost + 2
+
+
+def _feather_bottom(img: Image.Image, fraction: float) -> Image.Image:
+    """Fade out the bottom edge so clothing melts into the mermaid tail."""
+    if fraction <= 0.001:
+        return img
+    band = max(2, int(img.height * fraction))
+    alpha = np.asarray(img.getchannel("A"), np.float32)
+    ramp = np.ones(img.height, np.float32)
+    # Ease the ramp so the blend has no visible start.
+    tail_ramp = np.linspace(1.0, 0.0, band, dtype=np.float32) ** 1.6
+    ramp[-band:] = tail_ramp
+    out = np.asarray(img, np.uint8).copy()
+    out[..., 3] = np.clip(alpha * ramp[:, None], 0, 255).astype(np.uint8)
+    return Image.fromarray(out, "RGBA")
 
 
 def _top_transparent_rows(img: Image.Image) -> int:

@@ -65,6 +65,9 @@ class Renderer:
                                          speed=(90.0, 210.0), alpha=0.9)
 
         self.sparkles = SparkleField(self.w, self.h, count=26, seed=4, sizes=(11, 30))
+        self.finale_sparkles = SparkleField(self.w, self.h, count=40, seed=8, sizes=(16, 52))
+        self.finale_bubbles = BubbleField(self.w, self.h, count=40, seed=9, r_range=(8, 34),
+                                          speed=(120.0, 260.0), alpha=0.9)
         name_layer_y = CARD_RECT[1] + 356
         self.name_sparkles = SparkleField(self.w, self.h, count=18, seed=6, sizes=(14, 40),
                                           region=(name_layer_y / self.h - 0.055,
@@ -127,9 +130,8 @@ class Renderer:
     def _draw_swimmers(self, canvas: Image.Image, t: float) -> None:
         span = self.w + 420
         for s in self.swimmers:
-            x = (s.speed * t + (0 if s.speed > 0 else span)) % span - 210
-            if s.speed < 0:
-                x = span - 210 - ((-s.speed * t) % span)
+            travelled = abs(s.speed) * t % span
+            x = travelled - 210 if s.speed > 0 else span - 210 - travelled
             y = s.y + s.bob * math.sin(math.tau * t / s.bob_period + s.phase)
             canvas.alpha_composite(s.sprite, (int(x), int(y - s.sprite.height / 2)))
 
@@ -152,10 +154,17 @@ class Renderer:
         t = index / self.fps
         prog = clamp01(t / max(self.duration, 1e-6))
 
-        # Background: a very slow diagonal drift keeps the water alive.
-        ox = int(self.drift_x * (0.5 + 0.5 * math.sin(math.tau * t / 34.0)))
-        oy = int(self.drift_y * (0.5 + 0.5 * math.sin(math.tau * t / 41.0 + 1.2)))
-        canvas = self.bg_full.crop((ox, oy, ox + self.w, oy + self.h)).copy()
+        # Background: a slow push-in plus a diagonal drift. Zooming only the
+        # water keeps the card and its text pixel sharp.
+        zoom = 1.0 + 0.055 * smoothstep(prog)
+        cw, ch = int(self.w / zoom), int(self.h / zoom)
+        ox = int((self.bg_full.width - cw) * (0.5 + 0.5 * math.sin(math.tau * t / 34.0)))
+        oy = int((self.bg_full.height - ch) * (0.5 + 0.5 * math.sin(math.tau * t / 41.0 + 1.2)))
+        canvas = self.bg_full.crop((ox, oy, ox + cw, oy + ch))
+        if (cw, ch) != (self.w, self.h):
+            canvas = canvas.resize((self.w, self.h), Image.BILINEAR)
+        else:
+            canvas = canvas.copy()
 
         canvas = add_light(canvas, self.caustics.get(index), 1.0)
         ray_pulse = 0.62 + 0.30 * math.sin(math.tau * t / 9.0)
@@ -195,6 +204,14 @@ class Renderer:
         avoid = self.card_avoid if card_alpha > 0.1 else None
         self.bubbles_front.draw(canvas, t, 0.9, avoid=avoid)
         self.sparkles.draw(canvas, t, 0.55 + 0.25 * math.sin(math.tau * t / 7.0), avoid=avoid)
+
+        # Closing flourish over the sign-off.
+        finale = self.sheet.cues.get("finale")
+        if finale is not None and t >= finale.start:
+            since = t - finale.start
+            strength = smoothstep(clamp01(since / 0.45))
+            self.finale_bubbles.draw(canvas, t, strength * 0.75, avoid=avoid)
+            self.finale_sparkles.draw(canvas, t, strength * 0.95)
 
         # Gentle fade up from black at the very start and out at the end.
         rgb = ImageChops.multiply(canvas.convert("RGB"), self.vignette)

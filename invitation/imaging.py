@@ -91,9 +91,14 @@ def chroma_key(
     alpha = ndimage.gaussian_filter(alpha, 0.8)
 
     if despill > 0:
-        # Pull green fringes back towards the neighbouring channels.
+        # Only the fringe is contaminated by the backing colour. Applying this
+        # across the whole subject would drain the green out of anything that is
+        # legitimately green -- a mermaid tail, for one.
+        core = ndimage.binary_erosion(alpha > 0.5, iterations=4)
+        fringe = np.clip(1.0 - core.astype(np.float32), 0.0, 1.0)
+        fringe = ndimage.gaussian_filter(fringe, 1.5)
         limit = (rgb[..., 0] + rgb[..., 2]) * 0.5 + 0.06
-        spill = np.clip(rgb[..., 1] - limit, 0, None) * despill
+        spill = np.clip(rgb[..., 1] - limit, 0, None) * despill * fringe
         rgb = rgb.copy()
         rgb[..., 1] -= spill
 
