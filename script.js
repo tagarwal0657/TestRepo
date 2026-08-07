@@ -43,14 +43,12 @@ function hydrate() {
   text("d-dress", PARTY.dressCode);
   text("d-note", PARTY.note);
 
+  text("d-rsvp-by", PARTY.rsvpBy);
+
   const rsvp = document.getElementById("d-rsvp-link");
   if (rsvp) {
     rsvp.textContent = PARTY.rsvpName;
     rsvp.href = `tel:${PARTY.rsvpPhone.replace(/\s/g, "")}`;
-  }
-  const rsvpLine = rsvp && rsvp.parentElement;
-  if (rsvpLine) {
-    rsvpLine.lastChild.textContent = ` by ${PARTY.rsvpBy}`;
   }
 
   document.querySelectorAll(".signature__name").forEach((el) => (el.textContent = PARTY.name));
@@ -395,7 +393,7 @@ document.getElementById("card-close").addEventListener("click", closeCard);
 document.getElementById("rsvp-btn").addEventListener("click", (e) => {
   const r = e.currentTarget.getBoundingClientRect();
   burst(r.left + r.width / 2, r.top + r.height / 2, 70, 560);
-  say(`Yay! ${PARTY.name} will be so happy to sea you \u{1F9A6}`);
+  say(`Yay! ${PARTY.name} will be so happy to sea you!`);
 });
 
 document.getElementById("cal-btn").addEventListener("click", downloadInvite);
@@ -419,10 +417,20 @@ motionBtn.addEventListener("click", () => {
   motionBtn.querySelector(".chip__text").textContent = `Calm water: ${calm ? "on" : "off"}`;
 });
 
-// pointer bubbles (skipped on touch, where they would fight with scrolling)
+// pointer bubbles + a shallow parallax on the scene, so the water has depth
+let parallaxQueued = false;
+
 window.addEventListener("pointermove", (e) => {
   if (e.pointerType === "touch") return;
   trailBubble(e.clientX, e.clientY);
+
+  if (parallaxQueued || body.classList.contains("calm")) return;
+  parallaxQueued = true;
+  requestAnimationFrame(() => {
+    parallaxQueued = false;
+    body.style.setProperty("--px", (e.clientX / window.innerWidth - 0.5).toFixed(3));
+    body.style.setProperty("--py", (e.clientY / window.innerHeight - 0.5).toFixed(3));
+  });
 });
 
 // tapping the water anywhere sends up a little cluster of bubbles
