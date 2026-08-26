@@ -1,0 +1,1075 @@
+{
+  "info": {
+    "_postman_id": "7f3c1a2e-4b58-4e91-9c0d-2a1b3c4d5e6f",
+    "name": "Boomi Release Verification",
+    "description": "Import this collection plus one of the environments in `postman/` to walk the same Platform API calls `boomi-release-check` makes.\n\n**Mock (no tenant required)**\n1. `python3 tools/mock_boomi_api.py --port 8099`\n2. Import `postman/boomi-release-verification.postman_collection.json`\n3. Import `postman/boomi-mock.postman_environment.json` and select **Boomi Mock (local)**\n4. Run the collection (Collection Runner or Newman)\n\nThe mock answers **202 twice** on `ReleaseIntegrationPackStatus`, then **200 SUCCESS** with packaged versions `6.0`. Account queries page at 2 rows (`queryToken`). Sub-account outcomes:\n\n| Account | Expected |\n| --- | --- |\n| Alpha Logistics | UP_TO_DATE (`6.0`) |\n| Bravo Manufacturing | OUT_OF_DATE (`5.0`) |\n| Charlie Retail | PARTIAL (one `6.0`, one `5.0`) |\n| Delta Health | NOT_DEPLOYED (pack installed, nothing deployed) |\n| Echo Financial | ERROR (HTTP 403) |\n| Foxtrot Energy | UP_TO_DATE (`6.00` matches `6.0`) |\n\n**Live tenant**\nImport `postman/boomi-platform.postman_environment.json`, fill `username` / `apiToken` / `masterAccountId` / `requestId`, and replace the mock sub-account IDs.\n\nAuth is collection-level **Basic** (`{{username}}`:`{{apiToken}}`). Boomi token users look like `BOOMI_TOKEN.you@example.com`.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{username}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{apiToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8099"
+    },
+    {
+      "key": "masterAccountId",
+      "value": "apptio-master-OEM"
+    },
+    {
+      "key": "username",
+      "value": "BOOMI_TOKEN.releasebot@example.com"
+    },
+    {
+      "key": "apiToken",
+      "value": "demo-token"
+    },
+    {
+      "key": "requestId",
+      "value": "release-dcfbfd2c-09d9-492d-9965-bbd9ab8f2ffc"
+    },
+    {
+      "key": "subAccountId",
+      "value": "customer-alpha-A1B2C3"
+    },
+    {
+      "key": "componentId",
+      "value": "bb8b6c9d-9c39-4309-b07f-cdd96d201b27"
+    },
+    {
+      "key": "componentId2",
+      "value": "9d05717c-4dfe-4d5f-8e60-9196a6f78ef9"
+    },
+    {
+      "key": "integrationPackId",
+      "value": "d7c16f5d-3311-417e-a149-3c55436f7d8d"
+    },
+    {
+      "key": "releasedVersion",
+      "value": "6.0"
+    },
+    {
+      "key": "queryToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Parent - what was released",
+      "description": "GET ReleaseIntegrationPackStatus on the master account. HTTP 202 means IN_PROGRESS or SCHEDULED; HTTP 200 means released details (componentId + releasedVersion) are available. The mock returns 202 twice then 200, so this folder sends the GET three times in a single collection run.",
+      "item": [
+        {
+          "name": "GET ReleaseIntegrationPackStatus (poll 1)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/ReleaseIntegrationPackStatus/{{requestId}}",
+            "description": "First poll. Mock returns HTTP 202 / IN_PROGRESS. Tests still accept 200 so a live tenant that is already done does not fail."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 or 202 (Boomi still uses 202 while IN_PROGRESS/SCHEDULED)\", function () {",
+                  "    pm.expect([200, 202]).to.include(pm.response.code);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"payload identifies the release\", function () {",
+                  "    pm.expect(body).to.have.property(\"releaseStatus\");",
+                  "    pm.expect(body).to.have.property(\"requestId\");",
+                  "});",
+                  "if (pm.response.code === 200 && body.ReleasePackagedComponents) {",
+                  "    let components = body.ReleasePackagedComponents.ReleasePackagedComponent;",
+                  "    if (!Array.isArray(components)) {",
+                  "        components = components ? [components] : [];",
+                  "    }",
+                  "    pm.test(\"released components include componentId + releasedVersion\", function () {",
+                  "        pm.expect(components.length).to.be.above(0);",
+                  "        pm.expect(components[0]).to.have.property(\"componentId\");",
+                  "        pm.expect(components[0]).to.have.property(\"releasedVersion\");",
+                  "    });",
+                  "    if (components[0]) {",
+                  "        pm.collectionVariables.set(\"componentId\", components[0].componentId);",
+                  "        pm.collectionVariables.set(\"releasedVersion\", components[0].releasedVersion || \"\");",
+                  "    }",
+                  "    if (components[1]) {",
+                  "        pm.collectionVariables.set(\"componentId2\", components[1].componentId);",
+                  "    }",
+                  "    if (body.integrationPackId) {",
+                  "        pm.collectionVariables.set(\"integrationPackId\", body.integrationPackId);",
+                  "    }",
+                  "}",
+                  "console.log(\"releaseStatus=\" + body.releaseStatus + \" HTTP \" + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET ReleaseIntegrationPackStatus (poll 2)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/ReleaseIntegrationPackStatus/{{requestId}}",
+            "description": "Second poll. Mock returns HTTP 202 / IN_PROGRESS again."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 or 202 (Boomi still uses 202 while IN_PROGRESS/SCHEDULED)\", function () {",
+                  "    pm.expect([200, 202]).to.include(pm.response.code);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"payload identifies the release\", function () {",
+                  "    pm.expect(body).to.have.property(\"releaseStatus\");",
+                  "    pm.expect(body).to.have.property(\"requestId\");",
+                  "});",
+                  "if (pm.response.code === 200 && body.ReleasePackagedComponents) {",
+                  "    let components = body.ReleasePackagedComponents.ReleasePackagedComponent;",
+                  "    if (!Array.isArray(components)) {",
+                  "        components = components ? [components] : [];",
+                  "    }",
+                  "    pm.test(\"released components include componentId + releasedVersion\", function () {",
+                  "        pm.expect(components.length).to.be.above(0);",
+                  "        pm.expect(components[0]).to.have.property(\"componentId\");",
+                  "        pm.expect(components[0]).to.have.property(\"releasedVersion\");",
+                  "    });",
+                  "    if (components[0]) {",
+                  "        pm.collectionVariables.set(\"componentId\", components[0].componentId);",
+                  "        pm.collectionVariables.set(\"releasedVersion\", components[0].releasedVersion || \"\");",
+                  "    }",
+                  "    if (components[1]) {",
+                  "        pm.collectionVariables.set(\"componentId2\", components[1].componentId);",
+                  "    }",
+                  "    if (body.integrationPackId) {",
+                  "        pm.collectionVariables.set(\"integrationPackId\", body.integrationPackId);",
+                  "    }",
+                  "}",
+                  "console.log(\"releaseStatus=\" + body.releaseStatus + \" HTTP \" + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET ReleaseIntegrationPackStatus (expect SUCCESS)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/ReleaseIntegrationPackStatus/{{requestId}}",
+            "description": "Third poll. Mock returns HTTP 200 / SUCCESS and the tests copy `componentId`, `componentId2`, `releasedVersion` and `integrationPackId` into collection variables for later requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200 or 202 (Boomi still uses 202 while IN_PROGRESS/SCHEDULED)\", function () {",
+                  "    pm.expect([200, 202]).to.include(pm.response.code);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test(\"payload identifies the release\", function () {",
+                  "    pm.expect(body).to.have.property(\"releaseStatus\");",
+                  "    pm.expect(body).to.have.property(\"requestId\");",
+                  "});",
+                  "if (pm.response.code === 200 && body.ReleasePackagedComponents) {",
+                  "    let components = body.ReleasePackagedComponents.ReleasePackagedComponent;",
+                  "    if (!Array.isArray(components)) {",
+                  "        components = components ? [components] : [];",
+                  "    }",
+                  "    pm.test(\"released components include componentId + releasedVersion\", function () {",
+                  "        pm.expect(components.length).to.be.above(0);",
+                  "        pm.expect(components[0]).to.have.property(\"componentId\");",
+                  "        pm.expect(components[0]).to.have.property(\"releasedVersion\");",
+                  "    });",
+                  "    if (components[0]) {",
+                  "        pm.collectionVariables.set(\"componentId\", components[0].componentId);",
+                  "        pm.collectionVariables.set(\"releasedVersion\", components[0].releasedVersion || \"\");",
+                  "    }",
+                  "    if (components[1]) {",
+                  "        pm.collectionVariables.set(\"componentId2\", components[1].componentId);",
+                  "    }",
+                  "    if (body.integrationPackId) {",
+                  "        pm.collectionVariables.set(\"integrationPackId\", body.integrationPackId);",
+                  "    }",
+                  "}",
+                  "console.log(\"releaseStatus=\" + body.releaseStatus + \" HTTP \" + pm.response.code);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Discover sub-accounts",
+      "description": "`POST Account/query` lists accounts created by the parent. The mock pages at 2 results and returns `queryToken`; `queryMore` posts that token as **raw text/plain**, not JSON.",
+      "item": [
+        {
+          "name": "POST Account/query",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"property\": \"status\",\n      \"operator\": \"NOT_EQUALS\",\n      \"argument\": [\"deleted\"]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/Account/query",
+            "description": "Filter out deleted accounts. Saves `queryToken` when present so the next request can page."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "    pm.expect(body).to.have.property(\"result\");",
+                  "});",
+                  "if (body.queryToken) {",
+                  "    pm.collectionVariables.set(\"queryToken\", body.queryToken);",
+                  "    console.log(\"saved queryToken for queryMore\");",
+                  "} else {",
+                  "    pm.collectionVariables.unset(\"queryToken\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Account/queryMore",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "text/plain",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{queryToken}}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/Account/queryMore",
+            "description": "Body is the queryToken string from the previous page. Content-Type must be `text/plain`. Tokens are single-use."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('queryToken')) {",
+                  "    console.log(\"No queryToken from the previous query \u2014 skip or expect an empty page.\");",
+                  "}",
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Sub-account deployments (Platform API)",
+      "description": "Platform API account override: the sub-account ID replaces the account segment in the path. Each request is `POST DeployedPackage/query` filtered by `componentId` and `active=true`. Compare `packageVersion` to the parent's `releasedVersion`.",
+      "item": [
+        {
+          "name": "Alpha Logistics - Order Intake (expect MATCH 6.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Fully on the released version. Both prod and test environments report packageVersion 6.0."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alpha Logistics - Cost Export (expect MATCH 6.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId2}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Second released component on Alpha. Mock packageVersion 6.0."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bravo Manufacturing - Order Intake (expect BEHIND 5.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Pack is deployed but still on 5.0. This is OUT_OF_DATE / BEHIND versus releasedVersion 6.0."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-bravo-D4E5F6\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Charlie Retail - Order Intake (expect MATCH 6.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "First component moved to 6.0. Combined with Cost Export still on 5.0 this is PARTIAL."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-charlie-G7H8I9\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Charlie Retail - Cost Export (expect BEHIND 5.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId2}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Second component still on 5.0, which makes Charlie PARTIAL overall."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-charlie-G7H8I9\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delta Health - Order Intake (expect NOT_DEPLOYED)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "No active DeployedPackage rows. Combined with an IntegrationPackInstance this is NOT_DEPLOYED rather than NOT_INSTALLED."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-delta-J1K2L3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "const isMock = (pm.environment.get('baseUrl') || '').indexOf('127.0.0.1') !== -1",
+                  "    || (pm.environment.get('baseUrl') || '').indexOf('localhost') !== -1;",
+                  "if (isMock) {",
+                  "    pm.test(\"mock: Delta has no active deployments\", function () {",
+                  "        pm.expect(results.length).to.eql(0);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Echo Financial - Order Intake (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Parent cannot read this sub-account. A permissions gap must surface as ERROR, not as a clean miss."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-echo-M4N5O6\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const isMock = (pm.environment.get('baseUrl') || '').indexOf('127.0.0.1') !== -1",
+                  "    || (pm.environment.get('baseUrl') || '').indexOf('localhost') !== -1;",
+                  "if (isMock) {",
+                  "    pm.test(\"mock: Echo returns 403 (permissions gap must not look like a clean miss)\", function () {",
+                  "        pm.response.to.have.status(403);",
+                  "    });",
+                  "} else {",
+                  "    pm.test(\"live: 200 or 403\", function () {",
+                  "        pm.expect([200, 403]).to.include(pm.response.code);",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Foxtrot Energy - Order Intake (expect MATCH 6.00)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Active deployment is 6.00. Numeric-aware comparison treats 6.00 as equal to releasedVersion 6.0. An inactive 4.0 row is hidden by the active=true filter."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-foxtrot-P7Q8R9\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Foxtrot Energy - Order Intake including inactive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"property\": \"componentId\",\n      \"operator\": \"EQUALS\",\n      \"argument\": [\"{{componentId}}\"]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "description": "Same query without the active filter. Mock returns the live 6.00 row plus a retired 4.0 deployment."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-foxtrot-P7Q8R9\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Install check (optional)",
+      "description": "`POST IntegrationPackInstance/query` by integrationPackId. Used only to tell NOT_INSTALLED apart from NOT_DEPLOYED (`--check-instances` on the CLI).",
+      "item": [
+        {
+          "name": "Alpha Logistics - IntegrationPackInstance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"property\": \"integrationPackId\",\n      \"operator\": \"EQUALS\",\n      \"argument\": [\"{{integrationPackId}}\"]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/IntegrationPackInstance/query",
+            "description": "Pack is installed. Mock returns an instance id."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "pm.test(\"IntegrationPackInstance rows carry an id when present\", function () {",
+                  "    results.forEach(function (row) {",
+                  "        pm.expect(row).to.have.property(\"id\");",
+                  "        pm.expect(row).to.have.property(\"integrationPackId\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delta Health - IntegrationPackInstance (installed, not deployed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"property\": \"integrationPackId\",\n      \"operator\": \"EQUALS\",\n      \"argument\": [\"{{integrationPackId}}\"]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/IntegrationPackInstance/query",
+            "description": "Instance exists, but DeployedPackage query was empty \u2014 NOT_DEPLOYED, not NOT_INSTALLED."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-delta-J1K2L3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "pm.test(\"IntegrationPackInstance rows carry an id when present\", function () {",
+                  "    results.forEach(function (row) {",
+                  "        pm.expect(row).to.have.property(\"id\");",
+                  "        pm.expect(row).to.have.property(\"integrationPackId\");",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Partner API override",
+      "description": "Partner API keeps the authenticated account in the path and selects the tenant with `?overrideAccount=`. Same DeployedPackage filter as the Platform API folder.",
+      "item": [
+        {
+          "name": "Alpha Logistics - DeployedPackage via overrideAccount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}/partner/api/rest/v1/{{masterAccountId}}/DeployedPackage/query?overrideAccount={{subAccountId}}",
+            "description": "Equivalent to the Platform API Alpha Order Intake call, using `/partner/api/rest/v1/{master}/DeployedPackage/query?overrideAccount={sub}`."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

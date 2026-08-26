@@ -158,6 +158,18 @@ python3 -m boomi_release_check \
   --discover --wait --poll-interval 2 --detailed
 ```
 
+## Verify the API in Postman or curl
+
+The mock (or a live tenant) can be exercised request-by-request:
+
+- **Postman** — import [`postman/boomi-release-verification.postman_collection.json`](postman/boomi-release-verification.postman_collection.json) and [`postman/boomi-mock.postman_environment.json`](postman/boomi-mock.postman_environment.json). See [`postman/README.md`](postman/README.md).
+- **curl** — `./examples/verify-with-curl.sh` walks the same calls and asserts the mock status codes (202 polling, paging, MATCH / BEHIND / 403).
+
+```bash
+python3 tools/mock_boomi_api.py --port 8099 &
+./examples/verify-with-curl.sh
+```
+
 ## Tests
 
 ```bash
@@ -169,6 +181,7 @@ python3 -m pytest -q
 
 - [`docs/boomi-release-verification.md`](docs/boomi-release-verification.md) — the API
   flow, required privileges, and operational notes.
+- [`postman/README.md`](postman/README.md) — Postman collection to inspect those calls.
 - [ReleaseIntegrationPackStatus](https://developer.boomi.com/docs/api/platformapi/ReleaseIntegrationPackStatus)
 - [DeployedPackage](https://developer.boomi.com/docs/api/platformapi/DeployedPackage)
 - [IntegrationPackInstance](https://developer.boomi.com/docs/api/platformapi/IntegrationPackInstance)
