@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "boomi-release-check"
+version = "0.1.0"
+description = "Verify that a released Boomi integration pack version reached every OEM sub-account"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[project.scripts]
+boomi-release-check = "boomi_release_check.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+include = ["boomi_release_check*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
