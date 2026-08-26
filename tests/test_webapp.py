@@ -136,6 +136,8 @@ def test_ui_page_contains_the_hardcoded_host(http_server):
     assert "Master account ID" in html
     assert "Sub-account ID" in html
     assert "Password" in html
+    assert 'value="https://api.boomi.com"' in html
+    assert "info.baseUrl" not in html
 
 
 def test_health_reports_hardcoded_host(http_server):

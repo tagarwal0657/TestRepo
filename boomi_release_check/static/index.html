@@ -274,19 +274,6 @@
     const bodyEl = document.getElementById("body");
     const banner = document.getElementById("banner");
     const submit = document.getElementById("submit");
-    const hostLabel = document.getElementById("hostLabel");
-    const baseUrlInput = document.getElementById("baseUrl");
-
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then((info) => {
-        if (info.baseUrl) {
-          hostLabel.textContent = info.baseUrl;
-          baseUrlInput.value = info.baseUrl;
-        }
-      })
-      .catch(() => {});
-
     function showBanner(text, kind) {
       banner.className = "banner show " + (kind || "error");
       banner.textContent = text;
