@@ -141,6 +141,31 @@ Check that `release.components[].releasedVersion` equals
 the environment you expect that customer to run. Once that lines up, switch to
 `--discover` for the full sweep.
 
+## Local HTML UI
+
+Credentials stay on your machine. The page posts to a tiny local server, which then
+calls `https://api.boomi.com` (hardcoded) using the same verification logic as the CLI.
+
+```bash
+python3 -m boomi_release_check.webapp
+# open http://127.0.0.1:8765
+```
+
+Fill in master account ID, username, password (API token), the release request ID,
+and the sub-account ID to check. Several sub-accounts can be pasted as a comma- or
+newline-separated list.
+
+To try the UI against the mock API instead of Boomi:
+
+```bash
+python3 tools/mock_boomi_api.py --port 8099 &
+python3 -m boomi_release_check.webapp --port 8765 --base-url http://127.0.0.1:8099
+```
+
+Then use `apptio-master-OEM` / `BOOMI_TOKEN.releasebot@example.com` / `demo-token`,
+request ID `release-dcfbfd2c-09d9-492d-9965-bbd9ab8f2ffc`, and a mock sub-account
+such as `customer-alpha-A1B2C3`.
+
 ## Try it without a Boomi tenant
 
 A mock Platform API is included. It reproduces the 202 polling contract, Basic auth,

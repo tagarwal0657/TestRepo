@@ -12,12 +12,16 @@ license = { text = "MIT" }
 
 [project.scripts]
 boomi-release-check = "boomi_release_check.cli:main"
+boomi-release-ui = "boomi_release_check.webapp:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
 
 [tool.setuptools.packages.find]
 include = ["boomi_release_check*"]
+
+[tool.setuptools.package-data]
+boomi_release_check = ["static/index.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
