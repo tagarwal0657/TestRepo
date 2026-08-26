@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Boomi release check</title>
+  <style>
+    :root {
+      --ink: #12262c;
+      --ink-soft: #3d5359;
+      --header: #0e2a31;
+      --paper: #f3eee4;
+      --card: #fffdf8;
+      --line: #d8cfc0;
+      --terra: #c45c26;
+      --terra-hover: #a64918;
+      --ok: #1b7a4c;
+      --ok-bg: #e4f4eb;
+      --warn: #a86a12;
+      --warn-bg: #f8eedb;
+      --bad: #b3332a;
+      --bad-bg: #f8e4e2;
+      --muted: #6a757a;
+      --muted-bg: #ece7de;
+      --shadow: 0 10px 30px rgba(18, 38, 44, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(1200px 400px at 10% -10%, #e7d7c2 0%, transparent 55%),
+        var(--paper);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    header {
+      background: var(--header);
+      color: #f4efe6;
+      padding: 1.35rem 1.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+    }
+    header p {
+      margin: 0.2rem 0 0;
+      color: #c9d3d6;
+      font-size: 0.85rem;
+    }
+    header .host {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      color: #f0c9a8;
+      background: rgba(255,255,255,0.06);
+      padding: 0.35rem 0.6rem;
+      border-radius: 999px;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 26.5rem 1fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      main { grid-template-columns: 1fr; padding: 1rem; }
+      header { flex-direction: column; }
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      padding: 1.15rem 1.2rem 1.3rem;
+    }
+    .card h2 {
+      margin: 0 0 0.9rem;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink-soft);
+    }
+    label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 650;
+      margin: 0.75rem 0 0.28rem;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 8px;
+      padding: 0.55rem 0.7rem;
+      font: inherit;
+      font-size: 0.88rem;
+    }
+    input:focus, textarea:focus {
+      outline: 2px solid #c45c2680;
+      border-color: var(--terra);
+    }
+    input[readonly] {
+      background: var(--muted-bg);
+      color: var(--ink-soft);
+      cursor: default;
+    }
+    textarea { min-height: 4.6rem; resize: vertical; }
+    .hint {
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin: 0.25rem 0 0;
+      line-height: 1.35;
+    }
+    .checks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin: 0.9rem 0 0.3rem;
+    }
+    .checks label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 500;
+      margin: 0;
+    }
+    .checks input { width: auto; }
+    button {
+      margin-top: 1rem;
+      width: 100%;
+      border: 0;
+      background: var(--terra);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--terra-hover); }
+    button:disabled { opacity: 0.6; cursor: wait; }
+    .banner {
+      display: none;
+      margin-bottom: 0.9rem;
+      padding: 0.7rem 0.8rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    .banner.show { display: block; }
+    .banner.error { background: var(--bad-bg); color: var(--bad); }
+    .empty {
+      color: var(--muted);
+      padding: 1.4rem 0.2rem;
+      line-height: 1.5;
+    }
+    .kvs {
+      display: grid;
+      grid-template-columns: 10rem 1fr;
+      gap: 0.35rem 0.8rem;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+    .kvs dt { color: var(--muted); }
+    .kvs dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-all; }
+    .pill {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 0.18rem 0.5rem;
+      border-radius: 999px;
+      vertical-align: middle;
+    }
+    .UP_TO_DATE, .MATCH { background: var(--ok-bg); color: var(--ok); }
+    .PARTIAL { background: var(--warn-bg); color: var(--warn); }
+    .OUT_OF_DATE, .MISMATCH, .ERROR { background: var(--bad-bg); color: var(--bad); }
+    .NOT_DEPLOYED, .NOT_INSTALLED { background: var(--muted-bg); color: var(--muted); }
+    .account {
+      border-top: 1px solid var(--line);
+      padding: 0.9rem 0 0.2rem;
+    }
+    .account h3 {
+      margin: 0 0 0.55rem;
+      font-size: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin: 0.3rem 0 0.6rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.4rem 0.45rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 650; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    td.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin: 0 0 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Boomi release check</h1>
+      <p>Confirm a master-account pack release actually landed on a sub-account.</p>
+    </div>
+    <div class="host" id="hostLabel">https://api.boomi.com</div>
+  </header>
+  <main>
+    <form class="card" id="form" autocomplete="off">
+      <h2>Credentials</h2>
+      <label for="baseUrl">Base URL</label>
+      <input id="baseUrl" name="baseUrl" value="https://api.boomi.com" readonly>
+      <p class="hint">Hardcoded US Platform API host. The local server calls it on your behalf.</p>
+
+      <label for="accountId">Master account ID</label>
+      <input id="accountId" name="accountId" required placeholder="your-master-ACCOUNTID">
+
+      <label for="username">Username</label>
+      <input id="username" name="username" required placeholder="BOOMI_TOKEN.you@example.com">
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" required placeholder="API token or password">
+      <p class="hint">Sent only to this local server. Never stored.</p>
+
+      <label for="requestId">Release request ID</label>
+      <input id="requestId" name="requestId" required placeholder="release-…">
+      <p class="hint">Returned by ReleaseIntegrationPack, also on the Integration Packs page.</p>
+
+      <label for="subAccountId">Sub-account ID</label>
+      <textarea id="subAccountId" name="subAccountId" required placeholder="customer-alpha-A1B2C3"></textarea>
+      <p class="hint">One ID, or several separated by commas or new lines.</p>
+
+      <div class="checks">
+        <label><input type="checkbox" id="wait" checked> Wait if the release is still in progress</label>
+        <label><input type="checkbox" id="checkInstances"> Confirm pack install (IntegrationPackInstance)</label>
+        <label><input type="checkbox" id="partnerApi"> Use Partner API (?overrideAccount=)</label>
+      </div>
+      <button type="submit" id="submit">Verify sub-account</button>
+    </form>
+
+    <section class="card" id="results">
+      <h2>Result</h2>
+      <div class="banner" id="banner"></div>
+      <div id="body">
+        <p class="empty">Fill in the master account, username, password, release request ID and sub-account ID, then verify.</p>
+      </div>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById("form");
+    const bodyEl = document.getElementById("body");
+    const banner = document.getElementById("banner");
+    const submit = document.getElementById("submit");
+    function showBanner(text, kind) {
+      banner.className = "banner show " + (kind || "error");
+      banner.textContent = text;
+    }
+    function hideBanner() {
+      banner.className = "banner";
+      banner.textContent = "";
+    }
+    function pill(status) {
+      const el = document.createElement("span");
+      el.className = "pill " + (status || "");
+      el.textContent = status || "UNKNOWN";
+      return el;
+    }
+    function render(report) {
+      const release = report.release || {};
+      const wrap = document.createElement("div");
+
+      const kvs = document.createElement("dl");
+      kvs.className = "kvs";
+      const rows = [
+        ["Pack", release.name || "—"],
+        ["Request ID", release.requestId || "—"],
+        ["Release status", release.releaseStatus || "—"],
+        ["Generated", report.generatedAt || "—"],
+      ];
+      rows.forEach(([k, v]) => {
+        const dt = document.createElement("dt");
+        dt.textContent = k;
+        const dd = document.createElement("dd");
+        dd.textContent = v;
+        kvs.append(dt, dd);
+      });
+      wrap.appendChild(kvs);
+
+      if (release.components && release.components.length) {
+        const table = document.createElement("table");
+        table.innerHTML = "<thead><tr><th>Released component</th><th>Version</th></tr></thead>";
+        const tb = document.createElement("tbody");
+        release.components.forEach((c) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td class="code">${escapeHtml(c.componentId)}</td><td class="code">${escapeHtml(c.releasedVersion || "—")}</td>`;
+          tb.appendChild(tr);
+        });
+        table.appendChild(tb);
+        wrap.appendChild(table);
+      }
+
+      const summary = document.createElement("div");
+      summary.className = "summary";
+      Object.entries(report.summary || {}).forEach(([key, count]) => {
+        if (!count || key === "TOTAL") return;
+        const bit = pill(key);
+        bit.textContent = key + " × " + count;
+        summary.appendChild(bit);
+      });
+      wrap.appendChild(summary);
+
+      (report.accounts || []).forEach((account) => {
+        const block = document.createElement("div");
+        block.className = "account";
+        const h = document.createElement("h3");
+        const title = document.createElement("span");
+        title.textContent = account.accountName
+          ? account.accountName + "  " + account.accountId
+          : account.accountId;
+        h.append(title, pill(account.status));
+        block.appendChild(h);
+        if (account.error) {
+          const err = document.createElement("p");
+          err.className = "hint";
+          err.textContent = account.error;
+          block.appendChild(err);
+        }
+        const table = document.createElement("table");
+        table.innerHTML = "<thead><tr><th>Component</th><th>Expected</th><th>Deployed</th><th>Status</th><th>Environments</th></tr></thead>";
+        const tb = document.createElement("tbody");
+        (account.checks || []).forEach((check) => {
+          const tr = document.createElement("tr");
+          const statusCell = document.createElement("td");
+          statusCell.appendChild(pill(check.status));
+          if (check.drift) {
+            const drift = document.createElement("div");
+            drift.className = "hint";
+            drift.textContent = check.drift;
+            statusCell.appendChild(drift);
+          }
+          tr.innerHTML =
+            `<td class="code">${escapeHtml(check.componentId)}</td>` +
+            `<td class="code">${escapeHtml(check.expectedVersion || "—")}</td>` +
+            `<td class="code">${escapeHtml(check.deployedVersion || "—")}</td>`;
+          tr.appendChild(statusCell);
+          const env = document.createElement("td");
+          env.className = "code";
+          env.textContent = (check.environmentIds || []).join(", ") || "—";
+          tr.appendChild(env);
+          tb.appendChild(tr);
+        });
+        table.appendChild(tb);
+        block.appendChild(table);
+        wrap.appendChild(block);
+      });
+
+      bodyEl.innerHTML = "";
+      bodyEl.appendChild(wrap);
+    }
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      hideBanner();
+      submit.disabled = true;
+      submit.textContent = "Verifying…";
+      const payload = {
+        accountId: document.getElementById("accountId").value.trim(),
+        username: document.getElementById("username").value.trim(),
+        password: document.getElementById("password").value,
+        requestId: document.getElementById("requestId").value.trim(),
+        subAccountId: document.getElementById("subAccountId").value.trim(),
+        wait: document.getElementById("wait").checked,
+        checkInstances: document.getElementById("checkInstances").checked,
+        partnerApi: document.getElementById("partnerApi").checked,
+      };
+      try {
+        const response = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          bodyEl.innerHTML = '<p class="empty">No report. Fix the error and try again.</p>';
+          showBanner(data.error || ("Request failed (" + response.status + ")"), "error");
+          return;
+        }
+        hideBanner();
+        render(data);
+        if (data.hasOwnProperty("upToDate") && !data.upToDate) {
+          showBanner("Verification finished, but at least one sub-account is not on the released version.", "error");
+          banner.classList.add("show");
+          banner.style.background = "var(--warn-bg)";
+          banner.style.color = "var(--warn)";
+        }
+      } catch (err) {
+        showBanner(String(err), "error");
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "Verify sub-account";
+      }
+    });
+  </script>
+</body>
+</html>
