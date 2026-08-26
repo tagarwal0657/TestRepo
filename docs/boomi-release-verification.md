@@ -136,3 +136,7 @@ disables all of this and requires byte-for-byte equality.
   `--no-fail-on-drift` when the report is informational rather than a gate.
 - **Scheduling.** Run once after each release, then again on a schedule. Sub-accounts
   can drift later if a tenant redeploys an older package.
+
+To inspect the same HTTP calls by hand, import the Postman collection in
+[`postman/`](../postman/README.md) or run [`examples/verify-with-curl.sh`](../examples/verify-with-curl.sh)
+against the mock API.
