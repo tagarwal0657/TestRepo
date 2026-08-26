@@ -31,7 +31,7 @@ Auth is collection-level **Basic**: username `{{username}}`, password `{{apiToke
 
 1. **Parent** — `GET /ReleaseIntegrationPackStatus/{requestId}`. Tests copy `componentId` / `releasedVersion` into collection variables when the body is 200.
 2. **Discover** — `POST /Account/query` then `POST /Account/queryMore`. The more-call body is the raw `queryToken` with `Content-Type: text/plain`.
-3. **Deployments** — `POST /{subAccount}/DeployedPackage/query` for every mock tenant outcome (match, behind, partial, not deployed, 403, `6.00` numeric match).
+3. **Deployments** — `POST /{subAccount}/DeployedPackage/query` for every mock tenant outcome (match, behind, partial, not deployed, 403, `6.00` numeric match). Named mock requests bake the account ID into the URL so a collection run hits every fixture; the generic `{{subAccountId}}` request is for a live tenant.
 4. **Install check** — `POST /IntegrationPackInstance/query` (the CLI's `--check-instances`).
 5. **Partner API** — same DeployedPackage query with `?overrideAccount=`.
 

@@ -99,7 +99,9 @@ def test_collection_urls_match_the_python_client(collection):
     blob = json.dumps(collection)
     assert "{{baseUrl}}/api/rest/v1/{{masterAccountId}}/ReleaseIntegrationPackStatus/{{requestId}}" in blob
     assert "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query" in blob
-    assert "overrideAccount={{subAccountId}}" in blob
+    assert "{{baseUrl}}/api/rest/v1/customer-bravo-D4E5F6/DeployedPackage/query" in blob
+    assert "{{baseUrl}}/api/rest/v1/customer-echo-M4N5O6/DeployedPackage/query" in blob
+    assert "overrideAccount=customer-alpha-A1B2C3" in blob
 
 
 def _free_port() -> int:

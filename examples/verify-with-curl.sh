@@ -22,7 +22,11 @@ WAIT_RELEASE="${BOOMI_WAIT_RELEASE:-1}"
 
 pretty() {
   if command -v jq >/dev/null 2>&1; then
-    jq -C . 2>/dev/null || cat
+    if [[ -t 1 ]]; then
+      jq -C . 2>/dev/null || cat
+    else
+      jq . 2>/dev/null || cat
+    fi
   else
     python3 -m json.tool 2>/dev/null || cat
   fi

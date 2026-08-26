@@ -347,7 +347,7 @@
       "description": "Platform API account override: the sub-account ID replaces the account segment in the path. Each request is `POST DeployedPackage/query` filtered by `componentId` and `active=true`. Compare `packageVersion` to the parent's `releasedVersion`.",
       "item": [
         {
-          "name": "Alpha Logistics - Order Intake (expect MATCH 6.0)",
+          "name": "DeployedPackage/query for {{subAccountId}}",
           "request": {
             "method": "POST",
             "header": [
@@ -372,18 +372,60 @@
               }
             },
             "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
-            "description": "Fully on the released version. Both prod and test environments report packageVersion 6.0."
+            "description": "Generic Platform API override. Change `subAccountId` in the environment to point at a live tenant. The named mock requests below bake the account ID into the URL so a collection run hits every fixture."
           },
           "event": [
             {
-              "listen": "prerequest",
+              "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "const body = pm.response.json();",
+                  "pm.test(\"QueryResult shape\", function () {",
+                  "    pm.expect(body).to.have.property(\"numberOfResults\");",
+                  "});",
+                  "const results = Array.isArray(body.result) ? body.result : (body.result ? [body.result] : []);",
+                  "results.forEach(function (row, index) {",
+                  "    console.log((index + 1) + \". packageVersion=\" + row.packageVersion",
+                  "        + \" env=\" + row.environmentId",
+                  "        + \" active=\" + row.active",
+                  "        + \" deployedDate=\" + row.deployedDate);",
+                  "});"
                 ]
               }
+            }
+          ]
+        },
+        {
+          "name": "Alpha Logistics - Order Intake (expect MATCH 6.0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"QueryFilter\": {\n    \"expression\": {\n      \"operator\": \"and\",\n      \"nestedExpression\": [\n        {\n          \"property\": \"componentId\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"{{componentId}}\"]\n        },\n        {\n          \"property\": \"active\",\n          \"operator\": \"EQUALS\",\n          \"argument\": [\"true\"]\n        }\n      ]\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
+            "url": "{{baseUrl}}/api/rest/v1/customer-alpha-A1B2C3/DeployedPackage/query",
+            "description": "Fully on the released version. Both prod and test environments report packageVersion 6.0."
+          },
+          "event": [
             {
               "listen": "test",
               "script": {
@@ -431,19 +473,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-alpha-A1B2C3/DeployedPackage/query",
             "description": "Second released component on Alpha. Mock packageVersion 6.0."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -491,19 +524,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-bravo-D4E5F6/DeployedPackage/query",
             "description": "Pack is deployed but still on 5.0. This is OUT_OF_DATE / BEHIND versus releasedVersion 6.0."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-bravo-D4E5F6\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -551,19 +575,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-charlie-G7H8I9/DeployedPackage/query",
             "description": "First component moved to 6.0. Combined with Cost Export still on 5.0 this is PARTIAL."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-charlie-G7H8I9\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -611,19 +626,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-charlie-G7H8I9/DeployedPackage/query",
             "description": "Second component still on 5.0, which makes Charlie PARTIAL overall."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-charlie-G7H8I9\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -671,19 +677,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-delta-J1K2L3/DeployedPackage/query",
             "description": "No active DeployedPackage rows. Combined with an IntegrationPackInstance this is NOT_DEPLOYED rather than NOT_INSTALLED."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-delta-J1K2L3\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -729,19 +726,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-echo-M4N5O6/DeployedPackage/query",
             "description": "Parent cannot read this sub-account. A permissions gap must surface as ERROR, not as a clean miss."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-echo-M4N5O6\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -788,19 +776,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-foxtrot-P7Q8R9/DeployedPackage/query",
             "description": "Active deployment is 6.00. Numeric-aware comparison treats 6.00 as equal to releasedVersion 6.0. An inactive 4.0 row is hidden by the active=true filter."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-foxtrot-P7Q8R9\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -848,19 +827,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/DeployedPackage/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-foxtrot-P7Q8R9/DeployedPackage/query",
             "description": "Same query without the active filter. Mock returns the live 6.00 row plus a retired 4.0 deployment."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-foxtrot-P7Q8R9\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -914,19 +884,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/IntegrationPackInstance/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-alpha-A1B2C3/IntegrationPackInstance/query",
             "description": "Pack is installed. Mock returns an instance id."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -971,19 +932,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/api/rest/v1/{{subAccountId}}/IntegrationPackInstance/query",
+            "url": "{{baseUrl}}/api/rest/v1/customer-delta-J1K2L3/IntegrationPackInstance/query",
             "description": "Instance exists, but DeployedPackage query was empty \u2014 NOT_DEPLOYED, not NOT_INSTALLED."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-delta-J1K2L3\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
@@ -1034,19 +986,10 @@
                 }
               }
             },
-            "url": "{{baseUrl}}/partner/api/rest/v1/{{masterAccountId}}/DeployedPackage/query?overrideAccount={{subAccountId}}",
+            "url": "{{baseUrl}}/partner/api/rest/v1/{{masterAccountId}}/DeployedPackage/query?overrideAccount=customer-alpha-A1B2C3",
             "description": "Equivalent to the Platform API Alpha Order Intake call, using `/partner/api/rest/v1/{master}/DeployedPackage/query?overrideAccount={sub}`."
           },
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.collectionVariables.set(\"subAccountId\", \"customer-alpha-A1B2C3\");"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
