@@ -148,8 +148,10 @@ calls `https://api.boomi.com` (hardcoded) using the same verification logic as t
 
 ```bash
 python3 -m boomi_release_check.webapp
-# open http://127.0.0.1:8765
+# open the URL it prints (http://127.0.0.1:8765 by default)
 ```
+
+If 8765 is already taken it binds the next free port and prints that URL. Pass `--port` to choose one.
 
 Fill in master account ID, username, password (API token), the release request ID,
 and the sub-account ID to check. Several sub-accounts can be pasted as a comma- or

@@ -13,6 +13,7 @@ The Platform API host is hardcoded to ``https://api.boomi.com``. Pass
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import logging
 import time
@@ -233,7 +234,7 @@ def make_handler(
     base_url: str = HARDCODED_BASE_URL,
     client_factory: Callable[..., BoomiClient] = BoomiClient,
     sleep: Callable[[float], None] = time.sleep,
-) -> Type[ReleaseCheckHandler]:
+) -> type[ReleaseCheckHandler]:
     class BoundHandler(ReleaseCheckHandler):
         pass
 
@@ -243,15 +244,34 @@ def make_handler(
     return BoundHandler
 
 
+class _ReuseThreadingHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+
+
 def serve(
     host: str = "127.0.0.1",
     port: int = 8765,
     *,
     base_url: str = HARDCODED_BASE_URL,
+    port_attempts: int = 20,
 ) -> ThreadingHTTPServer:
+    """Bind the UI server, skipping to the next port if the requested one is taken."""
     handler = make_handler(base_url=base_url)
-    server = ThreadingHTTPServer((host, port), handler)
-    return server
+    last_error: Optional[OSError] = None
+    for offset in range(max(1, port_attempts)):
+        candidate = port + offset
+        try:
+            return _ReuseThreadingHTTPServer((host, candidate), handler)
+        except OSError as exc:
+            if getattr(exc, "errno", None) not in {errno.EADDRINUSE, errno.EACCES}:
+                raise
+            last_error = exc
+    last = port + max(1, port_attempts) - 1
+    raise OSError(
+        f"Port {port} is already in use (tried {port}-{last}). "
+        f"The UI may already be running at http://{host}:{port} — open that URL, "
+        f"or pass --port with a free port."
+    ) from last_error
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -266,9 +286,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    server = serve(args.host, args.port, base_url=args.base_url)
-    url = f"http://{args.host}:{args.port}"
-    print(f"Release verification UI: {url}", flush=True)
+    try:
+        server = serve(args.host, args.port, base_url=args.base_url)
+    except OSError as exc:
+        print(f"error: {exc}", flush=True)
+        return 1
+    bound_host, bound_port = server.server_address[:2]
+    if bound_port != args.port:
+        print(
+            f"Port {args.port} is already in use; serving on {bound_port} instead.",
+            flush=True,
+        )
+    print(f"Release verification UI: http://{bound_host}:{bound_port}", flush=True)
     print(f"  Platform API: {args.base_url}", flush=True)
     try:
         server.serve_forever()

@@ -9,6 +9,7 @@ from boomi_release_check.errors import ConfigError
 from boomi_release_check.webapp import (
     HARDCODED_BASE_URL,
     make_handler,
+    serve,
     split_sub_account_ids,
     verify_from_payload,
 )
@@ -170,3 +171,33 @@ def test_verify_endpoint_requires_fields(http_server):
     status, payload = _request(server, "POST", "/api/verify", {"accountId": "master"})
     assert status == 400
     assert "Missing required fields" in payload["error"]
+
+
+def test_serve_uses_the_next_port_when_the_requested_one_is_busy():
+    blocker = ThreadingHTTPServer(("127.0.0.1", 0), make_handler())
+    occupied = blocker.server_address[1]
+    thread = threading.Thread(target=blocker.serve_forever, daemon=True)
+    thread.start()
+    server = None
+    try:
+        server = serve("127.0.0.1", occupied)
+        assert server.server_address[1] != occupied
+        assert server.server_address[1] > occupied
+    finally:
+        if server is not None:
+            server.server_close()
+        blocker.shutdown()
+        blocker.server_close()
+
+
+def test_serve_raises_a_clear_error_when_no_port_is_free():
+    blocker = ThreadingHTTPServer(("127.0.0.1", 0), make_handler())
+    occupied = blocker.server_address[1]
+    thread = threading.Thread(target=blocker.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with pytest.raises(OSError, match="already in use"):
+            serve("127.0.0.1", occupied, port_attempts=1)
+    finally:
+        blocker.shutdown()
+        blocker.server_close()
