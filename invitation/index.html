@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Soumya's Baby Shower</title>
+<script>
+  if (new URLSearchParams(location.search).get("card") === "1") {
+    document.documentElement.classList.add("card-only");
+  }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Nunito:wght@600;700;800&family=Playfair+Display:ital,wght@0,500;0,700;1,600;1,700&display=swap" rel="stylesheet">
@@ -218,6 +223,19 @@
     cursor: pointer;
   }
   .hud button.on { background: #c15f2e; }
+  html.card-only,
+  html.card-only body {
+    background: var(--cream);
+  }
+  html.card-only .phone {
+    width: 100vw;
+    height: 100dvh;
+    box-shadow: none;
+  }
+  html.card-only .sound,
+  html.card-only .hud {
+    display: none;
+  }
   .sound {
     position: absolute;
     z-index: 5;
