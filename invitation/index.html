@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Soumya's Baby Shower</title>
+<script>
+  if (new URLSearchParams(location.search).get("card") === "1") {
+    document.documentElement.classList.add("card-only");
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Nunito:wght@600;700;800&family=Playfair+Display:ital,wght@0,500;0,700;1,600;1,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #3e5346;
+    --green-deep: #314438;
+    --rust: #c15f2e;
+    --line: #a86b32;
+    --cream: #f6edd8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(ellipse at 50% 40%, #f8f1df 0%, #e7d3a4 70%, #d7bc84 100%);
+    color: var(--green);
+    font-family: "Playfair Display", Georgia, serif;
+  }
+  body {
+    min-height: 100%;
+    display: grid;
+    place-items: center;
+  }
+  .phone {
+    position: relative;
+    width: min(100vw, calc(100dvh * 9 / 16));
+    height: min(100dvh, calc(100vw * 16 / 9));
+    background: var(--cream);
+    overflow: hidden;
+    container-type: size;
+    box-shadow: 0 18px 50px rgba(90, 60, 20, 0.28);
+  }
+  .scene {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.65s ease;
+  }
+  .scene.on { opacity: 1; pointer-events: auto; }
+  .scene img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .layer { opacity: 0; transition: opacity 0.7s ease; }
+  .scene.on .layer.show { opacity: 1; }
+
+  .s1 .full { opacity: 0; }
+  .scene.on.s1 .full { animation: fade 0.9s ease 0.55s forwards; }
+
+  .copy {
+    position: absolute;
+    left: 6%;
+    right: 6%;
+    text-align: center;
+    z-index: 2;
+  }
+  .reveal { opacity: 0; transform: translateY(10px); }
+  .scene.on .reveal { animation: rise 0.75s ease forwards; }
+  .d1 { animation-delay: 0.25s; }
+  .d2 { animation-delay: 0.7s; }
+  .d3 { animation-delay: 1.15s; }
+  .d4 { animation-delay: 1.7s; }
+  .d5 { animation-delay: 2.25s; }
+  .d6 { animation-delay: 2.75s; }
+  .scene.on .d1 { animation-delay: 0.25s; }
+  .scene.on .d2 { animation-delay: 0.7s; }
+  .scene.on .d3 { animation-delay: 1.15s; }
+  .scene.on .d4 { animation-delay: 1.7s; }
+  .scene.on .d5 { animation-delay: 2.25s; }
+  .scene.on .d6 { animation-delay: 2.75s; }
+
+  .script {
+    font-family: "Dancing Script", cursive;
+    font-weight: 700;
+    color: var(--rust);
+    line-height: 1.15;
+    margin: 0;
+  }
+  .green-script {
+    font-family: "Playfair Display", Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    color: var(--green);
+    margin: 0;
+    line-height: 1.15;
+  }
+  .serif {
+    font-family: "Playfair Display", Georgia, serif;
+    font-weight: 700;
+    color: var(--green-deep);
+    margin: 0;
+  }
+
+  /* Welcome card */
+  .s2 .copy { top: 44.2%; left: 8%; right: 8%; }
+  .s2 .welcome { font-size: 5.5cqh; }
+  .s2 .who {
+    font-size: 4.35cqh;
+    margin-top: 0.15cqh;
+    white-space: nowrap;
+  }
+
+  /* Parents */
+  .s4 .copy { top: 26.6%; left: 4%; right: 4%; }
+  .s4 .blessed { font-size: 4.35cqh; white-space: nowrap; }
+  .s4 .names {
+    font-size: 5cqh;
+    margin-top: 1.8cqh;
+    color: #4d6154;
+    white-space: nowrap;
+  }
+
+  /* Date and venue */
+  .s5 .copy { top: 25.4%; left: 5%; right: 5%; }
+  .s5 .shower { font-size: 6.6cqh; }
+  .s5 .on {
+    font-family: "Nunito", sans-serif;
+    font-weight: 800;
+    color: var(--rust);
+    font-size: 3.3cqh;
+    margin: 1.1cqh 0 0.7cqh;
+    letter-spacing: 0.02em;
+  }
+  .date-block {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    column-gap: 2cqw;
+    margin-top: 0.4cqh;
+  }
+  .date-word {
+    justify-self: stretch;
+    text-align: center;
+    font-size: 3.35cqh;
+    letter-spacing: 0.01em;
+    padding: 0.55cqh 0.4cqh 0.4cqh;
+    border-top: 0.22cqh solid var(--line);
+    border-bottom: 0.22cqh solid var(--line);
+  }
+  .num-col { display: flex; flex-direction: column; align-items: center; }
+  .date-num {
+    font-size: 6.1cqh;
+    line-height: 0.8;
+    font-weight: 700;
+  }
+  .year {
+    font-family: "Nunito", sans-serif;
+    font-weight: 700;
+    font-size: 2cqh;
+    letter-spacing: 0.06em;
+    margin-top: 0.15cqh;
+    color: var(--green);
+  }
+  .s6 .invited { animation-delay: 2.5s; }
+  .s6 .family { animation-delay: 3.15s; }
+  .when {
+    font-family: "Nunito", sans-serif;
+    font-weight: 700;
+    font-size: 2.7cqh;
+    margin: 2.2cqh 0 0;
+    letter-spacing: 0.01em;
+    color: var(--green-deep);
+  }
+  .venue-label {
+    font-size: 4.6cqh;
+    margin-top: 1.5cqh;
+  }
+  .addr {
+    font-weight: 700;
+    font-size: 2.85cqh;
+    line-height: 1.35;
+    margin-top: 0.8cqh;
+    color: var(--green-deep);
+  }
+
+  /* Closing */
+  .s6 .copy { top: 52%; }
+  .s6 .invited { font-size: 4.2cqh; }
+  .s6 .family {
+    font-size: 4.5cqh;
+    margin-top: 1.1cqh;
+    letter-spacing: 0.01em;
+  }
+
+  .hud {
+    position: absolute;
+    z-index: 5;
+    left: 0;
+    right: 0;
+    bottom: 1.4cqh;
+    display: flex;
+    justify-content: center;
+    gap: 1.4cqh;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .phone:hover .hud, .phone:focus-within .hud, .hud.show { opacity: 1; }
+  .hud button {
+    width: 1.5cqh;
+    height: 1.5cqh;
+    border-radius: 50%;
+    border: 0;
+    padding: 0;
+    background: rgba(62, 83, 70, 0.35);
+    cursor: pointer;
+  }
+  .hud button.on { background: #c15f2e; }
+  html.card-only,
+  html.card-only body {
+    background: var(--cream);
+  }
+  html.card-only .phone {
+    width: 100vw;
+    height: 100dvh;
+    box-shadow: none;
+  }
+  html.card-only .sound,
+  html.card-only .hud,
+  html.card-only .download {
+    display: none;
+  }
+  .download {
+    position: fixed;
+    z-index: 20;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    background: #c15f2e;
+    color: #fffaf3;
+    font-family: "Nunito", sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    text-decoration: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    box-shadow: 0 6px 16px rgba(90, 40, 10, 0.28);
+  }
+  .sound {
+    position: absolute;
+    z-index: 5;
+    top: 1.2cqh;
+    right: 1.4cqh;
+    width: 4cqh;
+    height: 4cqh;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255, 250, 240, 0.45);
+    color: var(--green-deep);
+    font-size: 1.8cqh;
+    cursor: pointer;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    border: 0;
+  }
+  @keyframes fade { to { opacity: 1; } }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .scene, .layer, .reveal, .s1 .full { animation: none !important; transition: none !important; }
+    .scene.on .reveal, .scene.on.s1 .full, .scene.on .layer.show { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+  <main class="phone" id="stage">
+    <section class="scene s1" data-dur="5400">
+      <img src="assets/s1-open.jpg" alt="">
+      <img class="full" src="assets/s1-full.jpg" alt="">
+      <p class="sr-only">Baby Shower Invitation</p>
+    </section>
+
+    <section class="scene s2" data-dur="4200">
+      <img src="assets/s2.jpg" alt="">
+      <div class="copy">
+        <p class="script welcome reveal d1">Welcome to</p>
+        <p class="script who reveal d2">Soumya's Baby Shower</p>
+      </div>
+    </section>
+
+    <section class="scene s3" data-dur="7000">
+      <img class="layer l0" src="assets/s3-a.jpg" alt="">
+      <img class="layer l1" src="assets/s3-b.jpg" alt="">
+      <img class="layer l2" src="assets/s3-c.jpg" alt="">
+      <img class="layer l3" src="assets/s3-d.jpg" alt="">
+      <p class="sr-only">The Best Phase of our life is about to begin. From being wife and husband to being called Mom and Dad.</p>
+    </section>
+
+    <section class="scene s4" data-dur="5200">
+      <img src="assets/s4.jpg" alt="">
+      <div class="copy">
+        <p class="script blessed reveal d1">Blessed Parents-to-bee</p>
+        <p class="green-script names reveal d2">Tushar &amp; Soumya</p>
+      </div>
+    </section>
+
+    <section class="scene s5" data-dur="8200">
+      <img src="assets/s5.jpg" alt="">
+      <div class="copy">
+        <p class="green-script shower reveal d1">Baby Shower</p>
+        <p class="on reveal d2">On</p>
+        <div class="date-block reveal d3">
+          <span class="serif date-word">Sunday</span>
+          <span class="num-col">
+            <span class="serif date-num">29</span>
+            <span class="year">2026</span>
+          </span>
+          <span class="serif date-word">November</span>
+        </div>
+        <p class="when reveal d4">5 PM Onwards</p>
+        <p class="script venue-label reveal d5">:: Venue ::</p>
+        <p class="serif addr reveal d6">At Our Own Residence<br>Chowk Bazar,<br>Jugsalai</p>
+      </div>
+    </section>
+
+    <section class="scene s6" data-dur="6800">
+      <img class="layer a" src="assets/s6-a.jpg" alt="">
+      <img class="layer b" src="assets/s6-b.jpg" alt="">
+      <div class="copy">
+        <p class="script invited reveal d3">:: Invited by::</p>
+        <p class="serif family reveal d4">Agarwal Family</p>
+      </div>
+      <p class="sr-only">Awaiting your gracious presence. Invited by Agarwal Family.</p>
+    </section>
+
+    <button class="sound" id="sound" type="button" aria-label="Play music">♪</button>
+    <div class="hud" id="hud">
+      <button type="button" data-go="0" aria-label="Opening"></button>
+      <button type="button" data-go="1" aria-label="Welcome"></button>
+      <button type="button" data-go="2" aria-label="Message"></button>
+      <button type="button" data-go="3" aria-label="Parents"></button>
+      <button type="button" data-go="4" aria-label="When and where"></button>
+      <button type="button" data-go="5" aria-label="Invitation"></button>
+    </div>
+  </main>
+  <a class="download" id="download" href="Soumyas-Baby-Shower.mp4" download="Soumyas-Baby-Shower.mp4">Download video</a>
+<script>
+(function () {
+  const scenes = Array.from(document.querySelectorAll(".scene"));
+  const dots = Array.from(document.querySelectorAll(".hud button"));
+  const hud = document.getElementById("hud");
+  let index = 0;
+  let timer = 0;
+  let playing = true;
+  const params = new URLSearchParams(location.search);
+  if (params.has("at")) {
+    index = Math.max(0, Math.min(scenes.length - 1, Number(params.get("at")) || 0));
+    playing = params.get("play") === "1";
+    hud.classList.add("show");
+  }
+
+  function restartReveals(scene) {
+    scene.querySelectorAll(".reveal").forEach((el) => {
+      el.style.animation = "none";
+      void el.offsetWidth;
+      el.style.animation = "";
+    });
+  }
+
+  function setLayers(scene) {
+    const layers = scene.querySelectorAll(".layer");
+    layers.forEach((el) => el.classList.remove("show"));
+    if (!layers.length) return;
+    const steps = layers.length;
+    const dur = Number(scene.dataset.dur);
+    const show = (n) => {
+      if (!scene.classList.contains("on")) return;
+      layers.forEach((el, i) => el.classList.toggle("show", i === n));
+    };
+    show(0);
+    for (let n = 1; n < steps; n++) {
+      setTimeout(() => show(n), Math.round((dur * n) / (steps + 0.4)));
+    }
+  }
+
+  function show(i) {
+    index = (i + scenes.length) % scenes.length;
+    scenes.forEach((scene, n) => scene.classList.toggle("on", n === index));
+    dots.forEach((dot, n) => dot.classList.toggle("on", n === index));
+    const scene = scenes[index];
+    restartReveals(scene);
+    setLayers(scene);
+    clearTimeout(timer);
+    if (playing) timer = setTimeout(() => show(index + 1), Number(scene.dataset.dur));
+  }
+
+  dots.forEach((dot) => {
+    dot.addEventListener("click", () => {
+      playing = true;
+      show(Number(dot.dataset.go));
+    });
+  });
+
+  document.getElementById("stage").addEventListener("click", (event) => {
+    if (event.target.closest(".hud, .sound")) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    playing = true;
+    show(x < rect.width * 0.35 ? index - 1 : index + 1);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowRight") show(index + 1);
+    if (event.key === "ArrowLeft") show(index - 1);
+    if (event.key === " ") {
+      event.preventDefault();
+      playing = !playing;
+      if (playing) show(index);
+      else clearTimeout(timer);
+    }
+  });
+
+  const soundBtn = document.getElementById("sound");
+  let audioCtx = null;
+  let musicTimer = 0;
+  let musicOn = false;
+  const melody = [262, 294, 330, 392, 330, 294, 349, 330, 294, 262, 294, 330];
+
+  function startMusic() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume();
+    let step = 0;
+    clearInterval(musicTimer);
+    musicTimer = setInterval(() => {
+      if (!musicOn) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = melody[step % melody.length];
+      gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.04, audioCtx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.7);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.75);
+      step++;
+    }, 520);
+  }
+
+  soundBtn.addEventListener("click", () => {
+    musicOn = !musicOn;
+    soundBtn.setAttribute("aria-label", musicOn ? "Pause music" : "Play music");
+    soundBtn.style.color = musicOn ? "#c15f2e" : "";
+    if (musicOn) startMusic();
+    else clearInterval(musicTimer);
+  });
+
+  const downloadLink = document.getElementById("download");
+  downloadLink.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const name = "Soumyas-Baby-Shower.mp4";
+    try {
+      const response = await fetch(name);
+      if (!response.ok) throw new Error("missing");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const saver = document.createElement("a");
+      saver.href = url;
+      saver.download = name;
+      document.body.appendChild(saver);
+      saver.click();
+      saver.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      window.location.href = downloadLink.href;
+    }
+  });
+
+  show(index);
+})();
+</script>
+</body>
+</html>
