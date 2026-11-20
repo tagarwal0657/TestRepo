@@ -233,8 +233,25 @@
     box-shadow: none;
   }
   html.card-only .sound,
-  html.card-only .hud {
+  html.card-only .hud,
+  html.card-only .download {
     display: none;
+  }
+  .download {
+    position: fixed;
+    z-index: 20;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    background: #c15f2e;
+    color: #fffaf3;
+    font-family: "Nunito", sans-serif;
+    font-weight: 800;
+    font-size: 16px;
+    text-decoration: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    box-shadow: 0 6px 16px rgba(90, 40, 10, 0.28);
   }
   .sound {
     position: absolute;
@@ -339,6 +356,7 @@
       <button type="button" data-go="5" aria-label="Invitation"></button>
     </div>
   </main>
+  <a class="download" id="download" href="Soumyas-Baby-Shower.mp4" download="Soumyas-Baby-Shower.mp4">Download video</a>
 <script>
 (function () {
   const scenes = Array.from(document.querySelectorAll(".scene"));
@@ -448,6 +466,28 @@
     soundBtn.style.color = musicOn ? "#c15f2e" : "";
     if (musicOn) startMusic();
     else clearInterval(musicTimer);
+  });
+
+  const downloadLink = document.getElementById("download");
+  downloadLink.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const name = "Soumyas-Baby-Shower.mp4";
+    try {
+      const response = await fetch(name);
+      if (!response.ok) throw new Error("missing");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const saver = document.createElement("a");
+      saver.href = url;
+      saver.download = name;
+      document.body.appendChild(saver);
+      saver.click();
+      saver.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      window.location.href = downloadLink.href;
+    }
   });
 
   show(index);
